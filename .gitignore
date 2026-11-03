@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# Device data and logs
+data/*
+!data/.gitkeep
+*.log
+*.cfg
+*.conf
+running-config*
+startup-config*
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
