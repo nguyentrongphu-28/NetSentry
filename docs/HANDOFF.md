@@ -24,7 +24,7 @@ Legend: [x] done and tested, [~] partial, [ ] not started
 - [x] Wizard: parameters → preview → validation errors → approve/reject → execute (confirm dialog) → verify
 - [~] Works against MOCK only. Needs real endpoints from B (see §5).
 ### Week 7 — AI assistant
-- [x] `backend/app/assistant/` (schemas, sanitizer, prompts, providers, service, router) + 39 pytest tests
+- [x] `backend/app/assistant/` (schemas, sanitizer, prompts, providers, service, router) + 42 pytest tests (39 assistant + 3 eval metrics); frontend: 9 vitest tests (diff + mock workflow rules)
 - [x] Frontend `AiExplain` panel on findings page
 - [ ] Not tested against a real free LLM provider (no key available in dev sandbox). Mock provider only.
 ### Week 8 — docs, evaluation
@@ -71,7 +71,7 @@ uvicorn app.main:app --app-dir backend --port 8000
 ## 7. Known issues / risks to tell the human
 - `.myvenv/` (≈3,700 files) is committed to `main` — `.gitignore` only lists `.venv/`. Recommend: add `.myvenv/` to `.gitignore` and `git rm -r --cached .myvenv`. NOT done by C (shared repo hygiene; needs team agreement).
 - `ssh_connector.py` hard-codes `/root/.ssh/config` and `use_keys=False` (A's file; not touched).
-- `backend/requirements.txt` is a full `pip freeze` (includes uvloop etc.). Not touched.
+- `backend/requirements.txt` is a full `pip freeze` (includes uvloop etc.). C only appended `httpx==0.28.1` (needed by FastAPI TestClient for tests).
 - Frontend has no auth/login UI yet (plan says RBAC "nếu cần"). When B adds auth, add a login page + token in `http()` in `client.ts`.
 - Mock `diff`/`snapshots` only cover `dev-sw1`.
 - `npm audit` reports advisories in dev tooling (vite/vitest dev deps); not run-time. Review before release.
@@ -83,3 +83,6 @@ uvicorn app.main:app --app-dir backend --port 8000
 4. Once A's rules exist, create labeled cases in `sample-data/eval/cases.json` and run `scripts/eval_rules.py --runner <module:function>`.
 5. Run the manual QA matrix in `docs/test-plan.md` on the lab; fill in results.
 6. Record the demo using `docs/demo-script.md`; take screenshots.
+
+## 9. Delivery note
+C had no push access to GitHub. Work is on local branch `feat/member-c-frontend-ai-qa` and delivered as `netsentry-member-c.patch` (git format-patch) + zip. Apply with: `git checkout -b feat/member-c-frontend-ai-qa && git am netsentry-member-c.patch`, then `git push -u origin feat/member-c-frontend-ai-qa` and open a PR (needs review from A or B per plan §3).
