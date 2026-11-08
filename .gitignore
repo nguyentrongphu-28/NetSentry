@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Bí mật
 .env
 *.pem
@@ -25,3 +26,36 @@ frontend/dist/
 .DS_Store
 .idea/
 .vscode/
+=======
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# Device data and logs
+data/*
+!data/.gitkeep
+*.log
+*.cfg
+*.conf
+running-config*
+startup-config*
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+>>>>>>> 7591a4d2f3829d9583385d6f103aabdd22d2b69a
