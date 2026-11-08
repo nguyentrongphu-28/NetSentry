@@ -1,0 +1,33 @@
+{
+  "_note": "Đáp án do người viết cấu hình xác định thủ công (ground truth), KHÔNG lấy từ output của rule engine. Dùng để tính precision/recall.",
+  "switch_good.cfg": {
+    "role": "switch",
+    "SEC-001": "PASS", "SEC-002": "PASS", "SEC-003": "PASS", "SEC-004": "PASS", "SEC-005": "PASS",
+    "SEC-006": "PASS", "SEC-007": "PASS", "SEC-008": "PASS", "SEC-009": "PASS", "SEC-010": "PASS",
+    "SEC-011": "PASS", "SEC-012": "PASS", "SEC-013": "PASS"
+  },
+  "switch_bad.cfg": {
+    "role": "switch",
+    "SEC-001": "FAIL", "SEC-002": "FAIL", "SEC-003": "FAIL", "SEC-004": "FAIL", "SEC-005": "FAIL",
+    "SEC-006": "FAIL", "SEC-007": "FAIL", "SEC-008": "FAIL", "SEC-009": "FAIL", "SEC-010": "FAIL",
+    "SEC-011": "FAIL", "SEC-012": "FAIL", "SEC-013": "FAIL"
+  },
+  "switch_edge_cases.cfg": {
+    "role": "switch",
+    "SEC-001": "PASS", "SEC-002": "FAIL", "SEC-003": "FAIL", "SEC-004": "PASS", "SEC-005": "FAIL",
+    "SEC-006": "PASS", "SEC-007": "PASS", "SEC-008": "PASS", "SEC-009": "FAIL", "SEC-010": "FAIL",
+    "SEC-011": "FAIL", "SEC-012": "FAIL", "SEC-013": "FAIL"
+  },
+  "router_good.cfg": {
+    "role": "router",
+    "SEC-001": "PASS", "SEC-002": "PASS", "SEC-003": "PASS", "SEC-004": "PASS", "SEC-005": "PASS",
+    "SEC-006": "PASS", "SEC-007": "PASS", "SEC-008": "PASS", "SEC-009": "PASS", "SEC-010": "PASS",
+    "SEC-011": "PASS", "SEC-012": "PASS", "SEC-013": "PASS"
+  },
+  "router_bad.cfg": {
+    "role": "router",
+    "SEC-001": "FAIL", "SEC-002": "FAIL", "SEC-003": "FAIL", "SEC-004": "FAIL", "SEC-005": "FAIL",
+    "SEC-006": "FAIL", "SEC-007": "FAIL", "SEC-008": "PASS", "SEC-009": "FAIL", "SEC-010": "FAIL",
+    "SEC-011": "FAIL", "SEC-012": "FAIL", "SEC-013": "FAIL"
+  }
+}

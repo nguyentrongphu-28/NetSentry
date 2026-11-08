@@ -1,0 +1,327 @@
+[
+  {
+    "rule_id": "SEC-001",
+    "name": "Bật mã hóa mật khẩu toàn cục",
+    "expected": "service password-encryption",
+    "severity": "MEDIUM",
+    "description": "Đảm bảo các mật khẩu dạng plain-text bị mã hóa trong file cấu hình.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^service password-encryption$",
+    "checks": [
+      {
+        "type": "required_line",
+        "pattern": "^service password-encryption$"
+      }
+    ],
+    "remediation": [
+      "service password-encryption"
+    ]
+  },
+  {
+    "rule_id": "SEC-002",
+    "name": "Chỉ cho phép SSH trên cổng VTY",
+    "expected": "transport input ssh",
+    "severity": "HIGH",
+    "description": "Ngăn chặn việc sử dụng giao thức Telnet không mã hóa khi quản trị từ xa.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^transport input\\b",
+    "checks": [
+      {
+        "type": "block_required",
+        "block_pattern": "^line vty\\b",
+        "pattern": "^transport input ssh$"
+      }
+    ],
+    "remediation": [
+      "line vty 0 4",
+      "transport input ssh",
+      "(lặp lại cho mọi khối 'line vty' khác)"
+    ]
+  },
+  {
+    "rule_id": "SEC-003",
+    "name": "Giới hạn thời gian phiên VTY (Timeout)",
+    "expected": "exec-timeout",
+    "severity": "LOW",
+    "description": "Tự động ngắt phiên kết nối quản trị khi không hoạt động để tránh bị chiếm đoạt. Lưu ý 'exec-timeout 0 0' nghĩa là KHÔNG bao giờ timeout nên vẫn bị coi là vi phạm.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^exec-timeout\\b",
+    "checks": [
+      {
+        "type": "block_required",
+        "block_pattern": "^line vty\\b",
+        "pattern": "^exec-timeout\\s+(?!0\\s+0\\s*$)\\d+(\\s+\\d+)?\\s*$"
+      }
+    ],
+    "remediation": [
+      "line vty 0 4",
+      "exec-timeout 5 0"
+    ]
+  },
+  {
+    "rule_id": "SEC-004",
+    "name": "Cấu hình cảnh báo đăng nhập (Banner MOTD)",
+    "expected": "banner motd",
+    "severity": "LOW",
+    "description": "Cảnh báo pháp lý đối với các truy cập trái phép vào thiết bị. Chấp nhận 'banner motd' hoặc 'banner login'.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^banner\\s+(motd|login)\\b",
+    "checks": [
+      {
+        "type": "required_line",
+        "pattern": "^banner\\s+(motd|login)\\b"
+      }
+    ],
+    "remediation": [
+      "banner motd ^C",
+      "Chỉ những người được ủy quyền mới được truy cập thiết bị này.",
+      "^C"
+    ]
+  },
+  {
+    "rule_id": "SEC-005",
+    "name": "Sử dụng mật khẩu đặc quyền mã hóa mạnh",
+    "expected": "enable secret",
+    "severity": "HIGH",
+    "description": "Bắt buộc dùng thuật toán mã hóa mạnh cho mật khẩu Enable thay vì enable password cũ.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^enable\\s+(secret|password)\\b",
+    "checks": [
+      {
+        "type": "required_line",
+        "pattern": "^enable secret\\s+"
+      },
+      {
+        "type": "forbidden_line",
+        "pattern": "^enable password\\s+"
+      }
+    ],
+    "remediation": [
+      "enable secret <mật-khẩu-mạnh>",
+      "no enable password"
+    ]
+  },
+  {
+    "rule_id": "SEC-006",
+    "name": "Tắt dịch vụ web HTTP không mã hóa",
+    "expected": "no ip http server",
+    "severity": "MEDIUM",
+    "description": "Vô hiệu hóa giao diện quản lý web HTTP kém an toàn.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^ip http server$",
+    "checks": [
+      {
+        "type": "forbidden_line",
+        "pattern": "^ip http server$"
+      }
+    ],
+    "remediation": [
+      "no ip http server"
+    ]
+  },
+  {
+    "rule_id": "SEC-007",
+    "name": "Tắt tính năng định tuyến nguồn",
+    "expected": "no ip source-route",
+    "severity": "MEDIUM",
+    "description": "Ngăn chặn kẻ tấn công định hướng gói tin qua các tuyến đường độc hại.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^ip source-route$",
+    "checks": [
+      {
+        "type": "required_line",
+        "pattern": "^no ip source-route$"
+      }
+    ],
+    "remediation": [
+      "no ip source-route"
+    ]
+  },
+  {
+    "rule_id": "SEC-008",
+    "name": "Tắt phân giải tên miền tự động",
+    "expected": "no ip domain-lookup",
+    "severity": "LOW",
+    "description": "Tránh việc thiết bị bị đơ tạm thời khi người dùng gõ sai lệnh quản trị. Bản IOS 15.x hiển thị là 'no ip domain lookup' (không gạch ngang); cả hai dạng đều được chấp nhận.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^ip domain[- ]lookup$",
+    "checks": [
+      {
+        "type": "required_line",
+        "pattern": "^no ip domain[- ]lookup$"
+      }
+    ],
+    "remediation": [
+      "no ip domain-lookup"
+    ]
+  },
+  {
+    "rule_id": "SEC-009",
+    "name": "Tắt Proxy ARP trên các giao diện",
+    "expected": "no ip proxy-arp",
+    "severity": "MEDIUM",
+    "description": "Ngăn chặn rò rỉ thông tin topology mạng và tấn công ARP Spoofing. Kiểm tra TỪNG interface có địa chỉ IP (bỏ qua Loopback); nếu thiết bị không có interface L3 thì không áp dụng.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^ip proxy-arp$",
+    "checks": [
+      {
+        "type": "block_required",
+        "block_pattern": "^interface\\s+",
+        "exclude_header": "^interface\\s+Loopback",
+        "only_if": "^ip address\\s+\\d",
+        "pattern": "^no ip proxy-arp$"
+      }
+    ],
+    "remediation": [
+      "interface <tên-interface>",
+      "no ip proxy-arp"
+    ]
+  },
+  {
+    "rule_id": "SEC-010",
+    "name": "Bật đồng bộ hóa dòng log (Logging synchronous)",
+    "expected": "logging synchronous",
+    "severity": "LOW",
+    "description": "Giúp thông báo hệ thống không bị chèn ngang làm hở dòng lệnh đang gõ. Kiểm tra cả line console và line vty.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^logging synchronous\\b",
+    "checks": [
+      {
+        "type": "block_required",
+        "block_pattern": "^line (con|vty)\\b",
+        "pattern": "^logging synchronous\\b"
+      }
+    ],
+    "remediation": [
+      "line con 0",
+      "logging synchronous",
+      "line vty 0 4",
+      "logging synchronous"
+    ]
+  },
+  {
+    "rule_id": "SEC-011",
+    "name": "Bắt buộc SSH phiên bản 2",
+    "expected": "ip ssh version 2",
+    "severity": "HIGH",
+    "description": "SSH v1 có điểm yếu đã biết; chỉ nên cho phép SSH v2.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^ip ssh version\\b",
+    "checks": [
+      {
+        "type": "required_line",
+        "pattern": "^ip ssh version 2$"
+      }
+    ],
+    "remediation": [
+      "ip ssh version 2"
+    ]
+  },
+  {
+    "rule_id": "SEC-012",
+    "name": "Không dùng SNMP community mặc định",
+    "expected": "không có snmp-server community public/private",
+    "severity": "HIGH",
+    "description": "Community 'public'/'private' là giá trị mặc định ai cũng biết. Các community khác đã được che (<REDACTED>) trong snapshot nên rule này chỉ kết luận về giá trị mặc định, không xác minh độ mạnh của community khác.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^snmp-server community\\b",
+    "checks": [
+      {
+        "type": "forbidden_line",
+        "pattern": "^snmp-server community\\s+(public|private)\\b"
+      }
+    ],
+    "remediation": [
+      "no snmp-server community public",
+      "no snmp-server community private",
+      "(dùng SNMPv3 hoặc community khó đoán kèm ACL giới hạn)"
+    ]
+  },
+  {
+    "rule_id": "SEC-013",
+    "name": "Giới hạn nguồn quản trị VTY bằng ACL",
+    "expected": "access-class <ACL> in",
+    "severity": "MEDIUM",
+    "description": "Chỉ cho phép dải IP quản trị truy cập VTY để giảm bề mặt tấn công.",
+    "applies_to": {
+      "roles": [
+        "router",
+        "switch"
+      ]
+    },
+    "touch_pattern": "^access-class\\b",
+    "checks": [
+      {
+        "type": "block_required",
+        "block_pattern": "^line vty\\b",
+        "pattern": "^access-class\\s+\\S+\\s+in\\b"
+      }
+    ],
+    "remediation": [
+      "ip access-list standard MGMT-ACL",
+      "permit <dải-quản-trị> <wildcard>",
+      "line vty 0 4",
+      "access-class MGMT-ACL in"
+    ]
+  }
+]

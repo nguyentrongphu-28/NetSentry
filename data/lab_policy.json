@@ -1,0 +1,6 @@
+{
+  "_note": "VÍ DỤ - hãy chỉnh theo VLAN/port mà quản lý lab cho phép thử nghiệm. Không đưa uplink hoặc port đang phục vụ mạng vào allowed_interfaces.",
+  "allowed_vlan_ids": {"min": 20, "max": 29},
+  "allowed_interfaces": ["GigabitEthernet0/1", "GigabitEthernet0/2"],
+  "protected_interfaces": []
+}

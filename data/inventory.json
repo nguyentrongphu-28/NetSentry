@@ -1,0 +1,16 @@
+[
+  {
+    "id": "dev_router_01",
+    "name": "Router-LAB",
+    "ip": "172.16.3.121",
+    "device_type": "cisco_ios",
+    "role": "router"
+  },
+  {
+    "id": "dev_switch_01",
+    "name": "Switch-LAB",
+    "ip": "172.16.3.122",
+    "device_type": "cisco_ios",
+    "role": "switch"
+  }
+]

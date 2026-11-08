@@ -1,0 +1,42 @@
+{
+  "baseline_id": "BL-ROUTER-001",
+  "role": "router",
+  "description": "Baseline cấu hình an toàn cho router lab. Mục 'interfaces' là ví dụ - chỉnh theo lab thật.",
+  "global_required": [
+    {"id": "G-01", "pattern": "^service password-encryption$", "description": "Mã hóa mật khẩu toàn cục"},
+    {"id": "G-02", "pattern": "^enable secret\\s+", "description": "Enable secret"},
+    {"id": "G-03", "pattern": "^ip ssh version 2$", "description": "SSH v2"},
+    {"id": "G-04", "pattern": "^no ip source-route$", "description": "Tắt source-route"},
+    {"id": "G-05", "pattern": "^no ip domain[- ]lookup$", "description": "Tắt domain lookup"}
+  ],
+  "global_forbidden": [
+    {"id": "GF-01", "pattern": "^ip http server$", "description": "HTTP server phải tắt"},
+    {"id": "GF-02", "pattern": "^enable password\\s+", "description": "Không dùng enable password"},
+    {"id": "GF-03", "pattern": "^snmp-server community\\s+(public|private)\\b", "description": "Không dùng community mặc định"}
+  ],
+  "blocks": [
+    {
+      "id": "B-VTY",
+      "block_pattern": "^line vty\\b",
+      "required": [
+        {"pattern": "^transport input ssh$", "description": "VTY chỉ SSH"},
+        {"pattern": "^exec-timeout\\s+(?!0\\s+0\\s*$)\\d+", "description": "VTY có timeout"},
+        {"pattern": "^access-class\\s+\\S+\\s+in\\b", "description": "VTY giới hạn nguồn bằng ACL"}
+      ],
+      "forbidden": [
+        {"pattern": "^transport input (all|telnet)\\b", "description": "VTY không cho Telnet"}
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "IF-01",
+      "interface": "GigabitEthernet0/0",
+      "optional": true,
+      "required": [
+        {"pattern": "^no ip proxy-arp$", "description": "Tắt proxy-arp trên cổng LAN"}
+      ],
+      "forbidden": []
+    }
+  ]
+}

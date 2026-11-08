@@ -1,0 +1,27 @@
+# Bí mật
+.env
+*.pem
+*.key
+
+# Môi trường ảo / cache Python
+.myvenv/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Dữ liệu sinh ra khi chạy (giữ .gitkeep)
+data/snapshots/*
+!data/snapshots/.gitkeep
+data/reports/*
+!data/reports/.gitkeep
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Hệ điều hành / IDE
+.DS_Store
+.idea/
+.vscode/
