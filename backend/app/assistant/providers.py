@@ -54,13 +54,13 @@ class MockProvider(LLMProvider):
 
 
 class OpenAICompatibleProvider(LLMProvider):
-    def __init__(self, base_url: str, api_key: str, model: str, timeout: int = 30):
+    def __init__(self, base_url: str, api_key: str, model: str, timeout: int = 90):
         self.base_url, self.api_key, self.model, self.timeout = base_url.rstrip("/"), api_key, model, timeout
         self.name = f"openai_compat:{model}"
 
     def complete(self, system: str, user: str) -> str:
         body = json.dumps({
-            "model": self.model, "temperature": 0, "max_tokens": 700,
+            "model": self.model, "temperature": 0, "max_tokens": 3000,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         }).encode()
         req = urllib.request.Request(
