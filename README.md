@@ -45,7 +45,7 @@ Install dependencies:
 
 Run the API:
 
-    uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+    uvicorn app.main:create_app --factory --app-dir backend --host 127.0.0.1 --port 8000
 
 Run tests:
 

@@ -20,6 +20,9 @@ credentials/
 data/*
 !data/.gitkeep
 data/raw_configs/
+data/*.db
+data/*.db-wal
+data/*.db-shm
 *.log
 *.cfg
 !backend/tests/fixtures/configs/*.cfg

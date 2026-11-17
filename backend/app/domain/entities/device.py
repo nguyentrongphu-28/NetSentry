@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,3 +38,29 @@ class Credentials:
 
     def __str__(self) -> str:
         return repr(self)
+
+
+# ---------------------------------------------------------------------------
+# Persistent Device entity (added in persistence/API phase)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class Device:
+    """A network device stored in the repository."""
+
+    device_id: str
+    name: str
+    host: str
+    port: int
+    platform: str
+    created_at: datetime
+    updated_at: datetime
+
+    def to_target(self) -> DeviceTarget:
+        """Convert to DeviceTarget for use with connectors."""
+        return DeviceTarget(
+            device_id=self.device_id,
+            host=self.host,
+            platform=self.platform,
+            port=self.port,
+        )

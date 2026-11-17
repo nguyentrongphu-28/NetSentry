@@ -51,3 +51,43 @@ class UnsupportedPlatformError(NetSentryError):
     """Raised when a connector is requested for an unsupported device platform."""
 
     code: str = "UNSUPPORTED_PLATFORM"
+
+
+# ---------------------------------------------------------------------------
+# Persistence & API layer errors (added in persistence/API phase)
+# ---------------------------------------------------------------------------
+
+class DeviceNotFoundError(NetSentryError):
+    """Raised when a requested device does not exist in the repository."""
+
+    code: str = "DEVICE_NOT_FOUND"
+
+
+class DuplicateDeviceError(NetSentryError):
+    """Raised when adding a device whose device_id or (host, port) already exists."""
+
+    code: str = "DEVICE_EXISTS"
+
+
+class InvalidDeviceError(NetSentryError):
+    """Raised when device creation parameters fail validation."""
+
+    code: str = "INVALID_DEVICE"
+
+
+class AuditNotFoundError(NetSentryError):
+    """Raised when a requested audit run does not exist in the repository."""
+
+    code: str = "AUDIT_NOT_FOUND"
+
+
+class AuditAlreadyRunningError(NetSentryError):
+    """Raised when an audit is already in progress for the given device."""
+
+    code: str = "AUDIT_ALREADY_RUNNING"
+
+
+class CredentialsRequiredError(NetSentryError):
+    """Raised when no credentials are available to perform an audit."""
+
+    code: str = "CREDENTIALS_REQUIRED"
