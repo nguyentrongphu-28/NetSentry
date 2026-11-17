@@ -19,8 +19,10 @@ credentials/
 # Device data and logs
 data/*
 !data/.gitkeep
+data/raw_configs/
 *.log
 *.cfg
+!backend/tests/fixtures/configs/*.cfg
 *.conf
 running-config*
 startup-config*
