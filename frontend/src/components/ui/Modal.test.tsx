@@ -96,4 +96,20 @@ describe("Modal component (a11y & focus trap)", () => {
     await user.tab({ shift: true });
     expect(document.activeElement).toBe(confirmBtn);
   });
+
+  it("regression: typing multiple consecutive characters retains focus on input", async () => {
+    const user = userEvent.setup();
+    render(<ModalTestHarness />);
+
+    await user.click(screen.getByText("Mở modal"));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    const input1 = screen.getByPlaceholderText("Input 1");
+    await user.click(input1);
+    expect(document.activeElement).toBe(input1);
+
+    await user.keyboard("NetSentryAdminUser123");
+    expect(input1).toHaveValue("NetSentryAdminUser123");
+    expect(document.activeElement).toBe(input1);
+  });
 });
