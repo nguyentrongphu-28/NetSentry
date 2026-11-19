@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -48,9 +49,44 @@ CREATE TABLE IF NOT EXISTS findings (
     checked_at    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_findings_run ON findings(audit_run_id);
+
+CREATE TABLE IF NOT EXISTS users (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    username              TEXT NOT NULL UNIQUE,
+    password_hash         TEXT NOT NULL,
+    role                  TEXT NOT NULL CHECK (role IN ('admin','operator','viewer')),
+    is_active             INTEGER NOT NULL DEFAULT 1,
+    must_change_password  INTEGER NOT NULL DEFAULT 1,
+    failed_attempts       INTEGER NOT NULL DEFAULT 0,
+    locked_until          TEXT,
+    created_at            TEXT NOT NULL,
+    last_login_at         TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash   TEXT PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at   TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    expires_at   TEXT NOT NULL,
+    client_ip    TEXT,
+    user_agent   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS security_events (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    occurred_at    TEXT NOT NULL,
+    event_type     TEXT NOT NULL,
+    actor_username TEXT,
+    client_ip      TEXT,
+    target         TEXT,
+    detail         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_events_time ON security_events(occurred_at DESC);
 """
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
@@ -77,11 +113,13 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 def init_db(db_path: str | Path) -> None:
     """Initialise the database schema idempotently.
 
-    Sets user_version = 1 after creating tables.
+    Sets user_version = 2 after creating tables.
+    Restricts file permissions to 0o600 on POSIX systems (best-effort).
     Raises RuntimeError if the stored user_version is newer than what this
     code understands (downgrade guard).
     """
-    conn = connect(db_path)
+    db_file = Path(db_path)
+    conn = connect(db_file)
     try:
         row = conn.execute("PRAGMA user_version").fetchone()
         stored_version: int = row[0]
@@ -98,3 +136,10 @@ def init_db(db_path: str | Path) -> None:
             conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
     finally:
         conn.close()
+
+    # Enforce chmod 0o600 on POSIX for both new and existing DB files (best-effort)
+    if os.name == "posix" and db_file.exists() and db_file.is_file():
+        try:
+            db_file.chmod(0o600)
+        except OSError:
+            pass

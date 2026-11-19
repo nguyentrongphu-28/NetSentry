@@ -10,19 +10,175 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.dependencies import UnauthorizedError
 from app.domain.errors import (
+    AccountLockedError,
     AuditAlreadyRunningError,
     AuditNotFoundError,
+    BodyCredentialsDisabledError,
     CredentialsRequiredError,
     DeviceNotFoundError,
     DuplicateDeviceError,
+    ForbiddenError,
+    InvalidCredentialsError,
     InvalidDeviceError,
+    LastAdminError,
     NetSentryError,
+    NotAuthenticatedError,
+    OriginNotAllowedError,
+    PasswordChangeRequiredError,
+    RateLimitedError,
+    UserExistsError,
+    UserNotFoundError,
+    WeakPasswordError,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(NotAuthenticatedError)
+    def not_authenticated_handler(request: Request, exc: NotAuthenticatedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(InvalidCredentialsError)
+    def invalid_credentials_handler(request: Request, exc: InvalidCredentialsError) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(ForbiddenError)
+    def forbidden_handler(request: Request, exc: ForbiddenError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(PasswordChangeRequiredError)
+    def password_change_required_handler(request: Request, exc: PasswordChangeRequiredError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(OriginNotAllowedError)
+    def origin_not_allowed_handler(request: Request, exc: OriginNotAllowedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(AccountLockedError)
+    def account_locked_handler(request: Request, exc: AccountLockedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(RateLimitedError)
+    def rate_limited_handler(request: Request, exc: RateLimitedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(exc.retry_after)},
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(WeakPasswordError)
+    def weak_password_handler(request: Request, exc: WeakPasswordError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(BodyCredentialsDisabledError)
+    def body_credentials_disabled_handler(request: Request, exc: BodyCredentialsDisabledError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(UserExistsError)
+    def user_exists_handler(request: Request, exc: UserExistsError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(LastAdminError)
+    def last_admin_handler(request: Request, exc: LastAdminError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(UserNotFoundError)
+    def user_not_found_handler(request: Request, exc: UserNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
     @app.exception_handler(UnauthorizedError)
     def unauthorized_handler(request: Request, exc: UnauthorizedError) -> JSONResponse:
         return JSONResponse(

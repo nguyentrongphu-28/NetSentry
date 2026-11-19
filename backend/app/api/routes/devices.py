@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
-from app.api.dependencies import get_audit_run_service, get_device_service, require_api_key
+from app.api.deps import (
+    Principal,
+    get_audit_run_service,
+    get_client_ip,
+    get_device_service,
+    get_security_event_service,
+    require_role,
+)
 from app.api.schemas.common import ErrorResponse
 from app.api.schemas.device import (
     DeviceCreate,
@@ -12,13 +19,15 @@ from app.api.schemas.device import (
     DeviceOut,
     DeviceWithLatestAuditOut,
 )
+from app.domain.entities.security_event import SecurityEventType
+from app.domain.entities.user import Role
 from app.services.audit_run_service import AuditRunService
 from app.services.device_service import DeviceService
+from app.services.security_event_service import SecurityEventService
 
 router = APIRouter(
     prefix="/devices",
     tags=["devices"],
-    dependencies=[Depends(require_api_key)],
 )
 
 
@@ -29,13 +38,17 @@ router = APIRouter(
     summary="Create a new device",
     responses={
         401: {"model": ErrorResponse, "description": "Unauthorized"},
+        403: {"model": ErrorResponse, "description": "Forbidden"},
         409: {"model": ErrorResponse, "description": "Device already exists"},
         422: {"model": ErrorResponse, "description": "Validation error or invalid device"},
     },
 )
 def create_device(
     payload: DeviceCreate,
+    request: Request,
+    principal: Principal = Depends(require_role(Role.ADMIN, Role.OPERATOR)),
     device_service: DeviceService = Depends(get_device_service),
+    event_service: SecurityEventService = Depends(get_security_event_service),
 ) -> DeviceOut:
     device = device_service.create(
         device_id=payload.device_id,
@@ -43,6 +56,14 @@ def create_device(
         name=payload.name,
         port=payload.port,
         platform=payload.platform,
+    )
+    client_ip = get_client_ip(request)
+    event_service.record(
+        event_type=SecurityEventType.DEVICE_CREATED,
+        actor_username=principal.username,
+        client_ip=client_ip,
+        target=device.device_id,
+        detail=f"Device {device.device_id} created ({device.host}:{device.port})",
     )
     return DeviceOut.from_domain(device)
 
@@ -56,6 +77,7 @@ def create_device(
     },
 )
 def list_devices(
+    principal: Principal = Depends(require_role(Role.ADMIN, Role.OPERATOR, Role.VIEWER)),
     device_service: DeviceService = Depends(get_device_service),
     audit_service: AuditRunService = Depends(get_audit_run_service),
 ) -> DeviceListOut:
@@ -78,6 +100,7 @@ def list_devices(
 )
 def get_device(
     device_id: str,
+    principal: Principal = Depends(require_role(Role.ADMIN, Role.OPERATOR, Role.VIEWER)),
     device_service: DeviceService = Depends(get_device_service),
     audit_service: AuditRunService = Depends(get_audit_run_service),
 ) -> DeviceWithLatestAuditOut:
@@ -93,12 +116,24 @@ def get_device(
     summary="Delete device and all audit history",
     responses={
         401: {"model": ErrorResponse, "description": "Unauthorized"},
+        403: {"model": ErrorResponse, "description": "Forbidden"},
         404: {"model": ErrorResponse, "description": "Device not found"},
     },
 )
 def delete_device(
     device_id: str,
+    request: Request,
+    principal: Principal = Depends(require_role(Role.ADMIN)),
     device_service: DeviceService = Depends(get_device_service),
+    event_service: SecurityEventService = Depends(get_security_event_service),
 ) -> Response:
     device_service.delete(device_id)
+    client_ip = get_client_ip(request)
+    event_service.record(
+        event_type=SecurityEventType.DEVICE_DELETED,
+        actor_username=principal.username,
+        client_ip=client_ip,
+        target=device_id,
+        detail=f"Device {device_id} deleted",
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

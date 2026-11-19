@@ -91,3 +91,83 @@ class CredentialsRequiredError(NetSentryError):
     """Raised when no credentials are available to perform an audit."""
 
     code: str = "CREDENTIALS_REQUIRED"
+
+
+# ---------------------------------------------------------------------------
+# Auth, RBAC & Public Mode errors (added in auth-rbac phase)
+# ---------------------------------------------------------------------------
+
+class InvalidCredentialsError(NetSentryError):
+    """Raised when username or password authentication fails."""
+
+    code: str = "INVALID_CREDENTIALS"
+
+
+class AccountLockedError(NetSentryError):
+    """Raised when an account is temporarily locked due to too many failed attempts."""
+
+    code: str = "ACCOUNT_LOCKED"
+
+
+class RateLimitedError(NetSentryError):
+    """Raised when request rate limit is exceeded."""
+
+    code: str = "RATE_LIMITED"
+
+    def __init__(self, message: str = "Too many requests", *, retry_after: int = 300) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class NotAuthenticatedError(NetSentryError):
+    """Raised when request lacks authentication."""
+
+    code: str = "UNAUTHORIZED"
+
+
+class ForbiddenError(NetSentryError):
+    """Raised when authenticated principal lacks required role/permission."""
+
+    code: str = "FORBIDDEN"
+
+
+class PasswordChangeRequiredError(NetSentryError):
+    """Raised when user must change password before performing other actions."""
+
+    code: str = "PASSWORD_CHANGE_REQUIRED"
+
+
+class WeakPasswordError(NetSentryError):
+    """Raised when password fails strength validation policy."""
+
+    code: str = "WEAK_PASSWORD"
+
+
+class UserExistsError(NetSentryError):
+    """Raised when creating a user with an already existing username."""
+
+    code: str = "USER_EXISTS"
+
+
+class UserNotFoundError(NetSentryError):
+    """Raised when a user is not found."""
+
+    code: str = "USER_NOT_FOUND"
+
+
+class LastAdminError(NetSentryError):
+    """Raised when attempting to deactivate or demote the last active admin."""
+
+    code: str = "LAST_ADMIN"
+
+
+class OriginNotAllowedError(NetSentryError):
+    """Raised when request Origin or Referer header fails CSRF validation."""
+
+    code: str = "ORIGIN_NOT_ALLOWED"
+
+
+class BodyCredentialsDisabledError(NetSentryError):
+    """Raised when credentials are provided in request body but server forbids it (e.g. public mode)."""
+
+    code: str = "BODY_CREDENTIALS_DISABLED"

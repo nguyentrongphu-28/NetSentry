@@ -35,6 +35,9 @@ CORE_DIR = APP_DIR / "core"
 API_DIR = APP_DIR / "api"
 
 
+SECURITY_DIR = APP_DIR / "security"
+
+
 def _extract_imported_modules(file_path: Path) -> list[str]:
     content = file_path.read_text(encoding="utf-8")
     tree = ast.parse(content, filename=str(file_path))
@@ -79,6 +82,7 @@ def test_core_layers_no_forbidden_imports():
         + list(CONNECTORS_DIR.rglob("*.py"))
         + list(REPOSITORIES_DIR.rglob("*.py"))
         + list(CORE_DIR.rglob("*.py"))
+        + list(SECURITY_DIR.rglob("*.py"))
     )
     assert len(target_files) > 0, "No python files found in target architecture directories!"
 
@@ -147,6 +151,7 @@ def test_domain_only_standard_library():
         "dataclasses",
         "datetime",
         "enum",
+        "re",
         "typing",
         "app",  # internal domain imports
     }
@@ -189,3 +194,22 @@ def test_services_layer_does_not_import_repository_implementations():
                 violations.append(f"{py_file.relative_to(APP_DIR)} imports concrete repository: '{path}'")
 
     assert not violations, "Services importing concrete repositories:\n" + "\n".join(violations)
+
+
+def test_argon2_only_in_password_hasher():
+    """Verify that argon2 is strictly isolated to app/security/password_hasher.py."""
+    all_app_files = list(APP_DIR.rglob("*.py"))
+    assert len(all_app_files) > 0
+
+    hasher_file = SECURITY_DIR / "password_hasher.py"
+    violations: list[str] = []
+
+    for py_file in all_app_files:
+        imported = _extract_imported_modules(py_file)
+        for mod in imported:
+            if mod.startswith("argon2") and py_file.resolve() != hasher_file.resolve():
+                violations.append(
+                    f"{py_file.relative_to(APP_DIR)} imports '{mod}' outside app/security/password_hasher.py"
+                )
+
+    assert not violations, "Argon2 import boundary violations found:\n" + "\n".join(violations)

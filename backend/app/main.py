@@ -7,16 +7,25 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_exception_handlers
-from app.api.routes import audits, devices, health
+from app.api.middleware import OriginCheckMiddleware, SecurityHeadersMiddleware
+from app.api.routes import audits, auth, devices, health, security_events, users
 from app.core.config import Settings
 from app.factories.connector_factory import ConnectorFactory, build_default_connector_factory
 from app.repositories.audit_repository import SqliteAuditRepository
 from app.repositories.database import init_db
 from app.repositories.device_repository import SqliteDeviceRepository
+from app.repositories.sqlite_security_event_repository import SQLiteSecurityEventRepository
+from app.repositories.sqlite_session_repository import SQLiteSessionRepository
+from app.repositories.sqlite_user_repository import SQLiteUserRepository
 from app.rules.registry import build_default_engine
+from app.security.password_hasher import Argon2PasswordHasher
+from app.security.rate_limiter import InMemorySlidingWindowLimiter
 from app.services.audit_run_service import AuditRunService
 from app.services.audit_service import AuditService
+from app.services.auth_service import AuthService
 from app.services.device_service import DeviceService
+from app.services.security_event_service import SecurityEventService
+from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +48,18 @@ def create_app(
 
     device_repo = SqliteDeviceRepository(app_settings.db_path)
     audit_repo = SqliteAuditRepository(app_settings.db_path)
+    user_repo = SQLiteUserRepository(app_settings.db_path)
+    session_repo = SQLiteSessionRepository(app_settings.db_path)
+    event_repo = SQLiteSecurityEventRepository(app_settings.db_path)
+
+    # In public mode, refuse startup if no active admin user exists
+    if app_settings.public_mode:
+        active_admins = user_repo.count_active_admins()
+        if active_admins == 0:
+            raise RuntimeError(
+                "NETSENTRY_PUBLIC_MODE=1 requires at least one active admin user in the database. "
+                "Run 'python backend/scripts/create_admin.py --username <admin>' first."
+            )
 
     # Build services
     conn_factory = (
@@ -60,6 +81,34 @@ def create_app(
         default_credentials=lambda: app_settings.default_credentials,
     )
 
+    password_hasher = Argon2PasswordHasher()
+    # Parse login rate limit (e.g. "10/300")
+    rate_limit_parts = app_settings.login_rate_limit.split("/")
+    max_reqs = int(rate_limit_parts[0]) if len(rate_limit_parts) >= 1 else 10
+    window_secs = int(rate_limit_parts[1]) if len(rate_limit_parts) >= 2 else 300
+    login_limiter = InMemorySlidingWindowLimiter(max_requests=max_reqs, window_seconds=window_secs)
+
+    event_service = SecurityEventService(event_repo=event_repo)
+    # Purge old events at startup
+    event_service.purge_old_events()
+
+    auth_service = AuthService(
+        user_repo=user_repo,
+        session_repo=session_repo,
+        event_repo=event_repo,
+        password_hasher=password_hasher,
+        rate_limiter=login_limiter,
+        max_failed_logins=app_settings.max_failed_logins,
+        lockout_minutes=app_settings.lockout_minutes,
+        session_ttl_minutes=app_settings.session_ttl_minutes,
+    )
+    user_service = UserService(
+        user_repo=user_repo,
+        session_repo=session_repo,
+        event_repo=event_repo,
+        password_hasher=password_hasher,
+    )
+
     # FastAPI instance
     docs_url = "/docs" if app_settings.enable_docs else None
     redoc_url = "/redoc" if app_settings.enable_docs else None
@@ -74,17 +123,25 @@ def create_app(
         openapi_url=openapi_url,
     )
 
-    # Attach services to state for dependency injection
+    # Attach services and repositories to state for dependency injection
     app.state.settings = app_settings
     app.state.device_service = device_service
     app.state.audit_run_service = audit_run_service
+    app.state.user_service = user_service
+    app.state.auth_service = auth_service
+    app.state.security_event_service = event_service
+    app.state.session_repository = session_repo
+
+    # Add Security Headers & Origin Check Middleware
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(OriginCheckMiddleware, cors_origins=app_settings.cors_origins)
 
     # Configure CORS
     if app_settings.cors_origins:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=list(app_settings.cors_origins),
-            allow_methods=["GET", "POST", "DELETE"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
             allow_headers=["X-API-Key", "Content-Type"],
             allow_credentials=False,
         )
@@ -96,8 +153,16 @@ def create_app(
     app.include_router(health.router)
 
     api_v1_router = APIRouter(prefix="/api/v1")
+    api_v1_router.include_router(auth.router)
     api_v1_router.include_router(devices.router)
     api_v1_router.include_router(audits.router)
+    api_v1_router.include_router(users.router)
+    api_v1_router.include_router(security_events.router)
     app.include_router(api_v1_router)
+
+    # Mount SPA static files if enabled
+    if app_settings.serve_frontend:
+        from app.api.static import mount_static_spa
+        mount_static_spa(app, app_settings.frontend_dist)
 
     return app
