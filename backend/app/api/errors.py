@@ -11,12 +11,19 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.dependencies import UnauthorizedError
 from app.domain.errors import (
     AccountLockedError,
+    AiBusyError,
+    AiDisabledError,
+    AiOutputInvalidError,
+    AiUnavailableError,
     AuditAlreadyRunningError,
     AuditNotFoundError,
     BodyCredentialsDisabledError,
+    ContentDisabledError,
     CredentialsRequiredError,
     DeviceNotFoundError,
+    DiffInputError,
     DuplicateDeviceError,
+    ExplanationNotFoundError,
     ForbiddenError,
     InvalidCredentialsError,
     InvalidCurrentPasswordError,
@@ -27,6 +34,7 @@ from app.domain.errors import (
     OriginNotAllowedError,
     PasswordChangeRequiredError,
     RateLimitedError,
+    SnapshotNotFoundError,
     UserExistsError,
     UserNotFoundError,
     WeakPasswordError,
@@ -291,6 +299,103 @@ def register_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         return JSONResponse(
             status_code=422,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(ContentDisabledError)
+    def content_disabled_handler(request: Request, exc: ContentDisabledError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(SnapshotNotFoundError)
+    def snapshot_not_found_handler(request: Request, exc: SnapshotNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(ExplanationNotFoundError)
+    def explanation_not_found_handler(request: Request, exc: ExplanationNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(DiffInputError)
+    def diff_input_handler(request: Request, exc: DiffInputError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(AiBusyError)
+    def ai_busy_handler(request: Request, exc: AiBusyError) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(getattr(exc, "retry_after", 30))},
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(AiOutputInvalidError)
+    def ai_output_invalid_handler(request: Request, exc: AiOutputInvalidError) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(AiDisabledError)
+    def ai_disabled_handler(request: Request, exc: AiDisabledError) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(AiUnavailableError)
+    def ai_unavailable_handler(request: Request, exc: AiUnavailableError) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
             content={
                 "error": {
                     "code": exc.code,

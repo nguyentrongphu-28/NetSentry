@@ -1,7 +1,13 @@
 import {
+  AiExplanationOut,
+  AiStatusOut,
   AuditRequestPayload,
   AuditRunDetailOut,
   AuditRunListOut,
+  CompareOut,
+  ConfigDiffOut,
+  SnapshotDetailOut,
+  SnapshotOut,
 } from "../types/api";
 import { apiFetch } from "./apiClient";
 
@@ -42,60 +48,52 @@ export async function getAuditRun(runId: number): Promise<AuditRunDetailOut> {
   return apiFetch<AuditRunDetailOut>(`/api/v1/audits/${runId}`);
 }
 
-// ----- Additional API functions for Snapshot & AI -----
-// Config diff API
-export async function fetchConfigDiff(deviceId: string, toRunId: number): Promise<unknown> {
-  // GET /devices/{id}/diff?from_run=&to_run=toRunId (from_run omitted -> previous run)
-  return apiFetch<unknown>(`/api/v1/devices/${encodeURIComponent(deviceId)}/diff?to_run=${toRunId}`);
+// ---------------------------------------------------------------------------
+// Snapshot, Diff & AI APIs
+// ---------------------------------------------------------------------------
+
+export async function listDeviceSnapshots(deviceId: string): Promise<SnapshotOut[]> {
+  return apiFetch<SnapshotOut[]>(`/api/v1/devices/${encodeURIComponent(deviceId)}/snapshots`);
 }
 
-// AI explain API
-export async function postExplainAuditRun(runId: number, force = false): Promise<unknown> {
-  const url = `/api/v1/audits/${runId}/explain${force ? "?force=1" : ""}`;
-  return apiFetch<unknown>(url, { method: "POST" });
-}
-
-export async function getAuditExplanation(runId: number): Promise<unknown> {
-  return apiFetch<unknown>(`/api/v1/audits/${runId}/explanation`);
-}
-
-// Snapshot APIs
-export async function listDeviceSnapshots(deviceId: string): Promise<unknown> {
-  return apiFetch<unknown>(`/api/v1/devices/${encodeURIComponent(deviceId)}/snapshots`);
-}
-
-export async function getSnapshotContent(snapshotId: number): Promise<unknown> {
-  return apiFetch<unknown>(`/api/v1/snapshots/${snapshotId}`);
+export async function getSnapshot(snapshotId: number): Promise<SnapshotDetailOut> {
+  return apiFetch<SnapshotDetailOut>(`/api/v1/snapshots/${snapshotId}`);
 }
 
 export async function deleteSnapshot(snapshotId: number): Promise<void> {
   await apiFetch<void>(`/api/v1/snapshots/${snapshotId}`, { method: "DELETE" });
 }
 
-export async function fetchConfigDiff(deviceId: string, toRunId: number): Promise<any> {
-  // GET /devices/{id}/diff?from_run=&to_run=toRunId (from_run omitted -> previous run)
-  return apiFetch<any>(`/api/v1/devices/${encodeURIComponent(deviceId)}/diff?to_run=${toRunId}`);
+export async function getDeviceConfigDiff(
+  deviceId: string,
+  fromRun?: number | null,
+  toRun?: number | null,
+): Promise<ConfigDiffOut> {
+  const params = new URLSearchParams();
+  if (fromRun !== undefined && fromRun !== null) params.set("from_run", String(fromRun));
+  if (toRun !== undefined && toRun !== null) params.set("to_run", String(toRun));
+  const queryStr = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<ConfigDiffOut>(`/api/v1/devices/${encodeURIComponent(deviceId)}/diff${queryStr}`);
 }
 
-// AI explain API
-export async function postExplainAuditRun(runId: number, force = false): Promise<any> {
-  const url = `/api/v1/audits/${runId}/explain${force ? "?force=1" : ""}`;
-  return apiFetch<any>(url, { method: "POST" });
+export async function compareAuditRuns(runId: number, withRun?: number | null): Promise<CompareOut> {
+  const params = new URLSearchParams();
+  if (withRun !== undefined && withRun !== null) params.set("with", String(withRun));
+  const queryStr = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<CompareOut>(`/api/v1/audits/${runId}/compare${queryStr}`);
 }
 
-export async function getAuditExplanation(runId: number): Promise<any> {
-  return apiFetch<any>(`/api/v1/audits/${runId}/explanation`);
+export async function getAiStatus(): Promise<AiStatusOut> {
+  return apiFetch<AiStatusOut>("/api/v1/ai/status");
 }
 
-// Snapshot APIs
-export async function listDeviceSnapshots(deviceId: string): Promise<any> {
-  return apiFetch<any>(`/api/v1/devices/${encodeURIComponent(deviceId)}/snapshots`);
+export async function generateAuditExplanation(runId: number, force = false): Promise<AiExplanationOut> {
+  const queryStr = force ? "?force=1" : "";
+  return apiFetch<AiExplanationOut>(`/api/v1/audits/${runId}/explain${queryStr}`, {
+    method: "POST",
+  });
 }
 
-export async function getSnapshotContent(snapshotId: number): Promise<any> {
-  return apiFetch<any>(`/api/v1/snapshots/${snapshotId}`);
-}
-
-export async function deleteSnapshot(snapshotId: number): Promise<void> {
-  await apiFetch<void>(`/api/v1/snapshots/${snapshotId}`, { method: "DELETE" });
+export async function getAuditExplanation(runId: number): Promise<AiExplanationOut> {
+  return apiFetch<AiExplanationOut>(`/api/v1/audits/${runId}/explanation`);
 }

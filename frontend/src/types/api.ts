@@ -155,3 +155,92 @@ export interface SecurityEventRecord {
   target?: string | null;
   detail?: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Snapshot & Diff & AI Types
+// ---------------------------------------------------------------------------
+
+export interface SnapshotOut {
+  id: number;
+  device_id: string;
+  run_id: number;
+  created_at: string;
+  content_sha256: string;
+  size_bytes: number;
+  line_count: number;
+  redaction_version: number;
+}
+
+export interface SnapshotDetailOut extends SnapshotOut {
+  content: string;
+}
+
+export interface DiffLineOut {
+  op: " " | "+" | "-";
+  text: string;
+}
+
+export interface DiffHunkOut {
+  old_start: number;
+  new_start: number;
+  lines: DiffLineOut[];
+}
+
+export interface ConfigDiffOut {
+  from_run_id: number;
+  to_run_id: number;
+  identical: boolean;
+  added: number;
+  removed: number;
+  hunks: DiffHunkOut[];
+  truncated: boolean;
+}
+
+export type ChangeKind = "REGRESSION" | "FIXED" | "PERSISTING" | "UNCHANGED_OK" | "OTHER";
+
+export interface FindingChangeOut {
+  rule_id: string;
+  title: string;
+  before_status?: string | null;
+  after_status?: string | null;
+  before_severity?: string | null;
+  after_severity?: string | null;
+  kind: ChangeKind;
+}
+
+export interface CompareOut {
+  from_run_id?: number | null;
+  to_run_id: number;
+  device_id: string;
+  has_previous: boolean;
+  changes: FindingChangeOut[];
+  counts: Record<string, number>;
+}
+
+export interface AiStatusOut {
+  enabled: boolean;
+  reachable: boolean;
+  model: string;
+}
+
+export interface PriorityItemOut {
+  rule_id: string;
+  reason: string;
+}
+
+export interface RiskNoteOut {
+  rule_id: string;
+  warning: string;
+}
+
+export interface AiExplanationOut {
+  run_id: number;
+  created_at: string;
+  model: string;
+  prompt_version: number;
+  input_sha256: string;
+  summary: string;
+  priorities: PriorityItemOut[];
+  risks: RiskNoteOut[];
+  generated_by_ai: boolean;
+}

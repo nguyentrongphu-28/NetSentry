@@ -41,6 +41,20 @@ class Settings:
     allow_body_credentials: bool = True
     serve_frontend: bool = False
     frontend_dist: Path | None = None
+    # Snapshot configuration
+    snapshot_enabled: bool = True
+    snapshot_dir: Path | None = None
+    snapshot_keep: int = 30
+    snapshot_hmac_key: str = ""
+    snapshot_content_api: bool = True
+    # AI configuration
+    ai_enabled: bool = False
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_allow_remote: bool = False
+    ollama_model: str = "qwen2.5:7b-instruct"
+    ai_timeout_seconds: int = 120
+    ai_max_concurrency: int = 1
+    ai_rate_limit: str = "5/3600"
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -165,6 +179,69 @@ class Settings:
         else:
             frontend_dist = repo_root / "frontend" / "dist"
 
+        # 12. Snapshot settings
+        snapshot_enabled_raw = env.get("NETSENTRY_SNAPSHOT_ENABLED", "1").strip().lower()
+        snapshot_enabled = snapshot_enabled_raw in ("1", "true", "yes")
+
+        snapshot_dir_raw = env.get("NETSENTRY_SNAPSHOT_DIR")
+        if snapshot_dir_raw:
+            snapshot_dir = Path(snapshot_dir_raw)
+        else:
+            snapshot_dir = repo_root / "data" / "snapshots"
+
+        try:
+            snapshot_keep = int(env.get("NETSENTRY_SNAPSHOT_KEEP", "30"))
+            if not (1 <= snapshot_keep <= 500):
+                raise ConfigError("NETSENTRY_SNAPSHOT_KEEP must be between 1 and 500")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_SNAPSHOT_KEEP: {exc}") from exc
+
+        snapshot_hmac_key = env.get("NETSENTRY_SNAPSHOT_HMAC_KEY", "").strip()
+
+        if public_mode:
+            snapshot_content_api = False
+        else:
+            content_api_raw = env.get("NETSENTRY_SNAPSHOT_CONTENT_API", "1").strip().lower()
+            snapshot_content_api = content_api_raw in ("1", "true", "yes")
+
+        # 13. AI settings
+        ai_enabled_raw = env.get("NETSENTRY_AI_ENABLED", "0").strip().lower()
+        ai_enabled = ai_enabled_raw in ("1", "true", "yes")
+
+        ollama_url = env.get("NETSENTRY_OLLAMA_URL", "http://127.0.0.1:11434").strip()
+        allow_remote_raw = env.get("NETSENTRY_OLLAMA_ALLOW_REMOTE", "0").strip().lower()
+        ollama_allow_remote = allow_remote_raw in ("1", "true", "yes")
+
+        if ai_enabled:
+            # Check loopback
+            from urllib.parse import urlparse
+            parsed_ollama = urlparse(ollama_url)
+            host = (parsed_ollama.hostname or "").lower()
+            is_loopback = host in ("127.0.0.1", "localhost", "::1")
+            if public_mode:
+                if not is_loopback or ollama_allow_remote:
+                    raise RuntimeError("In public mode with AI enabled, NETSENTRY_OLLAMA_URL must be loopback and remote is forbidden")
+            elif not is_loopback and not ollama_allow_remote:
+                raise ConfigError(f"NETSENTRY_OLLAMA_URL host '{host}' is not loopback. Set NETSENTRY_OLLAMA_ALLOW_REMOTE=1 if intentional.")
+
+        ollama_model = env.get("NETSENTRY_OLLAMA_MODEL", "qwen2.5:7b-instruct").strip()
+
+        try:
+            ai_timeout_seconds = int(env.get("NETSENTRY_AI_TIMEOUT_SECONDS", "120"))
+            if not (10 <= ai_timeout_seconds <= 600):
+                raise ConfigError("NETSENTRY_AI_TIMEOUT_SECONDS must be between 10 and 600")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_AI_TIMEOUT_SECONDS: {exc}") from exc
+
+        try:
+            ai_max_concurrency = int(env.get("NETSENTRY_AI_MAX_CONCURRENCY", "1"))
+            if ai_max_concurrency < 1:
+                raise ConfigError("NETSENTRY_AI_MAX_CONCURRENCY must be at least 1")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_AI_MAX_CONCURRENCY: {exc}") from exc
+
+        ai_rate_limit = env.get("NETSENTRY_AI_RATE_LIMIT", "5/3600").strip()
+
         return cls(
             db_path=db_path,
             api_key=api_key,
@@ -186,4 +263,16 @@ class Settings:
             allow_body_credentials=allow_body_credentials,
             serve_frontend=serve_frontend,
             frontend_dist=frontend_dist,
+            snapshot_enabled=snapshot_enabled,
+            snapshot_dir=snapshot_dir,
+            snapshot_keep=snapshot_keep,
+            snapshot_hmac_key=snapshot_hmac_key,
+            snapshot_content_api=snapshot_content_api,
+            ai_enabled=ai_enabled,
+            ollama_url=ollama_url,
+            ollama_allow_remote=ollama_allow_remote,
+            ollama_model=ollama_model,
+            ai_timeout_seconds=ai_timeout_seconds,
+            ai_max_concurrency=ai_max_concurrency,
+            ai_rate_limit=ai_rate_limit,
         )

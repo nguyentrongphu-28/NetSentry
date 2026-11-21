@@ -2,9 +2,10 @@ import React from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useAuditRun } from "../hooks/useAuditRun";
+import { AuditSummaryHeader } from "../components/audits/AuditSummaryHeader";
+import { FindingsTable } from "../components/audits/FindingsTable";
 import { ComparePanel } from "../components/audits/ComparePanel";
 import { AiExplainPanel } from "../components/audits/AiExplainPanel";
-import { FindingsTable } from "../components/audits/FindingsTable";
 import { Spinner } from "../components/ui/Spinner";
 import { ErrorBanner } from "../components/ui/ErrorBanner";
 
@@ -83,12 +84,13 @@ export function AuditRunPage(): React.JSX.Element {
       {/* Summary Header Card + FAILED Alert if any */}
       <AuditSummaryHeader summary={summary} />
 
+      {/* Compare with previous audit run */}
+      {!isFailed && <ComparePanel runId={summary.id} />}
+
+      {/* AI Explanation */}
+      {!isFailed && <AiExplainPanel runId={summary.id} />}
+
       {/* Findings Table only when status is COMPLETED */}
-      {!isFailed && <FindingsTable findings={findings} />}
-      {/* AI Explain Panel (operator+ ) */}
-      <AiExplainPanel runId={summary.id} enabled={true} />
-      {/* Config Diff Compare Panel (operator+ ) */}
-      <ComparePanel deviceId={summary.device_id} currentRunId={summary.id} />
       {!isFailed && <FindingsTable findings={findings} />}
     </div>
   );

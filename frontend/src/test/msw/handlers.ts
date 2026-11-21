@@ -297,4 +297,30 @@ export const handlers = [
     }
     return HttpResponse.json(mockAuditRunDetail);
   }),
+
+  // AI Status
+  http.get("/api/v1/ai/status", () => {
+    return HttpResponse.json({
+      enabled: false,
+      reachable: false,
+      model: "llama3:8b",
+    });
+  }),
+
+  // Audit Compare
+  http.get("/api/v1/audits/:runId/compare", () => {
+    return HttpResponse.json({
+      from_run_id: null,
+      to_run_id: 101,
+      device_id: "Router-Core-01",
+      has_previous: false,
+      changes: [],
+      counts: {},
+    });
+  }),
+
+  // Snapshots
+  http.get("/api/v1/devices/:deviceId/snapshots", () => {
+    return HttpResponse.json([]);
+  }),
 ];

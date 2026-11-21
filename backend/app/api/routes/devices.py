@@ -10,6 +10,7 @@ from app.api.deps import (
     get_client_ip,
     get_device_service,
     get_security_event_service,
+    get_snapshot_service,
     require_role,
 )
 from app.api.schemas.common import ErrorResponse
@@ -24,6 +25,7 @@ from app.domain.entities.user import Role
 from app.services.audit_run_service import AuditRunService
 from app.services.device_service import DeviceService
 from app.services.security_event_service import SecurityEventService
+from app.services.snapshot_service import SnapshotService
 
 router = APIRouter(
     prefix="/devices",
@@ -126,8 +128,10 @@ def delete_device(
     principal: Principal = Depends(require_role(Role.ADMIN)),
     device_service: DeviceService = Depends(get_device_service),
     event_service: SecurityEventService = Depends(get_security_event_service),
+    snapshot_service: SnapshotService = Depends(get_snapshot_service),
 ) -> Response:
     device_service.delete(device_id)
+    snapshot_service.delete_for_device(device_id)
     client_ip = get_client_ip(request)
     event_service.record(
         event_type=SecurityEventType.DEVICE_DELETED,

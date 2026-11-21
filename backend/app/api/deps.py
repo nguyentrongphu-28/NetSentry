@@ -20,10 +20,13 @@ from app.domain.errors import (
 from app.domain.interfaces.session_repository import SessionRepository
 from app.security.client_ip import resolve_client_ip
 from app.security.tokens import hash_token
+from app.services.ai_explain_service import AiExplainService
 from app.services.audit_run_service import AuditRunService
 from app.services.auth_service import AuthService
 from app.services.device_service import DeviceService
+from app.services.diff_service import DiffService
 from app.services.security_event_service import SecurityEventService
+from app.services.snapshot_service import SnapshotService
 from app.services.user_service import UserService
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -75,6 +78,18 @@ def get_user_service(request: Request) -> UserService:
 
 def get_security_event_service(request: Request) -> SecurityEventService:
     return request.app.state.security_event_service
+
+
+def get_snapshot_service(request: Request) -> SnapshotService:
+    return request.app.state.snapshot_service
+
+
+def get_diff_service(request: Request) -> DiffService:
+    return request.app.state.diff_service
+
+
+def get_ai_explain_service(request: Request) -> AiExplainService:
+    return request.app.state.ai_explain_service
 
 
 def get_session_repository(request: Request) -> SessionRepository:

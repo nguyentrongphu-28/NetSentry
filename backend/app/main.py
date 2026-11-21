@@ -8,23 +8,30 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_exception_handlers
 from app.api.middleware import OriginCheckMiddleware, SecurityHeadersMiddleware
-from app.api.routes import audits, auth, devices, health, security_events, users
+from app.api.routes import ai, audits, auth, compare, devices, health, security_events, snapshots, users
 from app.core.config import Settings
+from app.clients.ollama_client import OllamaClient
 from app.factories.connector_factory import ConnectorFactory, build_default_connector_factory
 from app.repositories.audit_repository import SqliteAuditRepository
-from app.repositories.database import init_db
+from app.repositories.database import connect, init_db
 from app.repositories.device_repository import SqliteDeviceRepository
+from app.repositories.file_snapshot_store import FileSnapshotStore
+from app.repositories.sqlite_ai_explanation_repository import SqliteAiExplanationRepository
 from app.repositories.sqlite_security_event_repository import SQLiteSecurityEventRepository
 from app.repositories.sqlite_session_repository import SQLiteSessionRepository
+from app.repositories.sqlite_snapshot_repository import SqliteSnapshotRepository
 from app.repositories.sqlite_user_repository import SQLiteUserRepository
 from app.rules.registry import build_default_engine
 from app.security.password_hasher import Argon2PasswordHasher
 from app.security.rate_limiter import InMemorySlidingWindowLimiter
+from app.services.ai_explain_service import AiExplainService
 from app.services.audit_run_service import AuditRunService
 from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
 from app.services.device_service import DeviceService
+from app.services.diff_service import DiffService
 from app.services.security_event_service import SecurityEventService
+from app.services.snapshot_service import SnapshotService
 from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -74,11 +81,55 @@ def create_app(
         device_repo,
         allowed_networks=app_settings.allowed_networks,
     )
+
+    # Snapshot infrastructure
+    snapshot_dir = app_settings.snapshot_dir or (app_settings.db_path.parent / "snapshots")
+    file_store = FileSnapshotStore(snapshot_dir)
+    snapshot_repo = SqliteSnapshotRepository(app_settings.db_path)
+    # Purge orphan snapshot files at startup
+    known_files = snapshot_repo.list_all_file_names()
+    file_store.cleanup_orphans(known_files)
+
+    from app.security.config_redactor import ConfigRedactor
+    from app.security.config_normalizer import ConfigNormalizer
+    hmac_key = app_settings.snapshot_hmac_key or "netsentry-snapshot-default-key"
+    redactor = ConfigRedactor(hmac_key=hmac_key)
+
+    snapshot_service = SnapshotService(
+        snapshot_repository=snapshot_repo,
+        file_store=file_store,
+        redactor=redactor,
+        normalizer=ConfigNormalizer,
+        enabled=app_settings.snapshot_enabled,
+        keep=app_settings.snapshot_keep,
+        content_api_enabled=app_settings.snapshot_content_api,
+    )
+
+    diff_service = DiffService()
+
     audit_run_service = AuditRunService(
         device_repository=device_repo,
         audit_repository=audit_repo,
         audit_service=audit_core_service,
         default_credentials=lambda: app_settings.default_credentials,
+        snapshot_service=snapshot_service,
+    )
+
+    # AI infrastructure
+    ai_repo = SqliteAiExplanationRepository(app_settings.db_path)
+    ollama_client = OllamaClient(
+        base_url=app_settings.ollama_url,
+        model_name=app_settings.ollama_model,
+        allow_remote=app_settings.ollama_allow_remote,
+    )
+    ai_explain_service = AiExplainService(
+        explanation_repository=ai_repo,
+        audit_run_service=audit_run_service,
+        llm_client=ollama_client,
+        enabled=app_settings.ai_enabled,
+        timeout_seconds=app_settings.ai_timeout_seconds,
+        max_concurrency=app_settings.ai_max_concurrency,
+        rate_limit=app_settings.ai_rate_limit,
     )
 
     password_hasher = Argon2PasswordHasher()
@@ -127,6 +178,9 @@ def create_app(
     app.state.settings = app_settings
     app.state.device_service = device_service
     app.state.audit_run_service = audit_run_service
+    app.state.snapshot_service = snapshot_service
+    app.state.diff_service = diff_service
+    app.state.ai_explain_service = ai_explain_service
     app.state.user_service = user_service
     app.state.auth_service = auth_service
     app.state.security_event_service = event_service
@@ -156,6 +210,9 @@ def create_app(
     api_v1_router.include_router(auth.router)
     api_v1_router.include_router(devices.router)
     api_v1_router.include_router(audits.router)
+    api_v1_router.include_router(snapshots.router)
+    api_v1_router.include_router(compare.router)
+    api_v1_router.include_router(ai.router)
     api_v1_router.include_router(users.router)
     api_v1_router.include_router(security_events.router)
     app.include_router(api_v1_router)

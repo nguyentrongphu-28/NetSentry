@@ -4,6 +4,7 @@ import { ArrowLeft, Play } from "lucide-react";
 import { useDevice } from "../hooks/useDevice";
 import { useAuditRuns } from "../hooks/useAuditRuns";
 import { AuditHistoryTable } from "../components/audits/AuditHistoryTable";
+import { SnapshotList } from "../components/devices/SnapshotList";
 import { RunAuditDialog } from "../components/devices/RunAuditDialog";
 import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
@@ -15,10 +16,10 @@ import { useCan } from "../auth/useCan";
 
 export function DeviceDetailPage(): React.JSX.Element {
   const { deviceId } = useParams<{ deviceId: string }>();
+  const [activeTab, setActiveTab] = useState<"audits" | "snapshots">("audits");
   const [offset, setOffset] = useState(0);
   const limit = 20;
-  import { useCan } from "../auth/useCan";
-const canViewSnapshots = useCan('snapshot:view');
+  const canAudit = useCan("audit:run");
 
   const [isRunAuditOpen, setIsRunAuditOpen] = useState(false);
 
@@ -157,16 +158,6 @@ const canViewSnapshots = useCan('snapshot:view');
         </div>
 
         {/* Latest Audit Card */}
-          {/* Snapshot Tab (operator+ / admin) */}
-          {useCan('snapshot:view') && (
-            <div className="mt-6">
-              <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-100 pb-2">
-                Snapshots
-              </h2>
-              {/* Snapshot list component – will render list + diff viewer */}
-              <SnapshotList deviceId={device.device_id} />
-            </div>
-          )}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs flex flex-col justify-between">
           <div>
             <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-100 pb-3">
@@ -216,36 +207,71 @@ const canViewSnapshots = useCan('snapshot:view');
         </div>
       </div>
 
-      {/* Audit History Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              {STRINGS.deviceDetail.historyTitle}
-            </h2>
-            <p className="text-xs text-gray-500">
-              {STRINGS.deviceDetail.historySubtitle}
-            </p>
-          </div>
-        </div>
-
-        {isAuditsError ? (
-          <ErrorBanner
-            title="Lỗi tải lịch sử audit"
-            message={auditsError instanceof Error ? auditsError.message : "Không thể tải lịch sử."}
-            onRetry={() => refetchAudits()}
-          />
-        ) : (
-          <AuditHistoryTable
-            audits={auditsData?.items || []}
-            total={auditsData?.total || 0}
-            limit={limit}
-            offset={offset}
-            onPageChange={(newOffset) => setOffset(newOffset)}
-            isLoading={isAuditsLoading}
-          />
-        )}
+      {/* Tabs: Audits vs Snapshots */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            type="button"
+            onClick={() => setActiveTab("audits")}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "audits"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            {STRINGS.deviceDetail.historyTitle}
+          </button>
+          {canAudit && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("snapshots")}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === "snapshots"
+                  ? "border-indigo-600 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              {STRINGS.snapshots.tabTitle}
+            </button>
+          )}
+        </nav>
       </div>
+
+      {activeTab === "audits" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">
+                {STRINGS.deviceDetail.historyTitle}
+              </h2>
+              <p className="text-xs text-gray-500">
+                {STRINGS.deviceDetail.historySubtitle}
+              </p>
+            </div>
+          </div>
+
+          {isAuditsError ? (
+            <ErrorBanner
+              title="Lỗi tải lịch sử audit"
+              message={auditsError instanceof Error ? auditsError.message : "Không thể tải lịch sử."}
+              onRetry={() => refetchAudits()}
+            />
+          ) : (
+            <AuditHistoryTable
+              audits={auditsData?.items || []}
+              total={auditsData?.total || 0}
+              limit={limit}
+              offset={offset}
+              onPageChange={(newOffset) => setOffset(newOffset)}
+              isLoading={isAuditsLoading}
+            />
+          )}
+        </div>
+      )}
+
+      {activeTab === "snapshots" && canAudit && (
+        <SnapshotList deviceId={device.device_id} />
+      )}
 
       {/* Run Audit Dialog */}
       <RunAuditDialog
