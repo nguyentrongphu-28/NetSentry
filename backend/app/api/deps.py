@@ -94,7 +94,7 @@ def get_client_ip(request: Request) -> str:
     )
 
 
-async def resolve_principal(
+def resolve_principal(
     request: Request,
     api_key: str | None = Depends(api_key_header),
 ) -> Principal | None:
@@ -139,7 +139,7 @@ async def resolve_principal(
     return None
 
 
-async def get_current_principal(
+def get_current_principal(
     principal: Principal | None = Depends(resolve_principal),
 ) -> Principal:
     """Ensure a valid principal exists; raise 401 NotAuthenticatedError otherwise."""
@@ -157,7 +157,7 @@ def require_role(*roles: Role) -> Callable[..., Principal]:
     - 403 FORBIDDEN + records ACCESS_DENIED security event if principal lacks role.
     """
 
-    async def _role_checker(
+    def _role_checker(
         request: Request,
         principal: Principal = Depends(get_current_principal),
         event_svc: SecurityEventService = Depends(get_security_event_service),

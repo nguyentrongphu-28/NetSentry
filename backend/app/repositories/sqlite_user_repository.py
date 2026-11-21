@@ -234,13 +234,21 @@ class SQLiteUserRepository(UserRepository):
         try:
             with conn:
                 row = conn.execute(
-                    "SELECT failed_attempts FROM users WHERE id = ?",
+                    "SELECT failed_attempts, locked_until FROM users WHERE id = ?",
                     (user_id,),
                 ).fetchone()
                 if not row:
                     raise UserNotFoundError(f"User with ID {user_id} not found.")
 
-                new_count = int(row["failed_attempts"]) + 1
+                previous = int(row["failed_attempts"])
+                if row["locked_until"]:
+                    prev_lock = datetime.fromisoformat(row["locked_until"])
+                    if prev_lock.tzinfo is None:
+                        prev_lock = prev_lock.replace(tzinfo=timezone.utc)
+                    if prev_lock <= at:
+                        previous = 0  # lock expired: start a fresh counting window
+
+                new_count = previous + 1
                 locked_until: datetime | None = None
                 locked_until_iso: str | None = None
 

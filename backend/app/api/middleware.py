@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-
+_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Enforces standard HTTP security headers and no-store caching for API."""
@@ -31,7 +31,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "base-uri 'self'; "
             "form-action 'self'"
         )
-        response.headers["Content-Security-Policy"] = csp
+        if not request.url.path.startswith(_DOCS_PATHS):
+            response.headers["Content-Security-Policy"] = csp
 
         # 2. No-store cache for /api/ routes
         if request.url.path.startswith("/api/"):
@@ -68,6 +69,13 @@ class OriginCheckMiddleware(BaseHTTPMiddleware):
 
             parsed_source = urlparse(source_url)
             source_netloc = parsed_source.netloc.lower()
+             # NEW: reject "Origin: null" and non-http(s) sources
+            if not source_netloc or parsed_source.scheme not in ("http", "https"):
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": {"code": "ORIGIN_NOT_ALLOWED", "message": "Invalid Origin header"}},
+                )
+
 
             # Compare with request Host header or configured CORS origins
             host_header = request.headers.get("host", "").lower()

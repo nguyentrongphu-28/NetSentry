@@ -19,6 +19,7 @@ from app.domain.errors import (
     DuplicateDeviceError,
     ForbiddenError,
     InvalidCredentialsError,
+    InvalidCurrentPasswordError,
     InvalidDeviceError,
     LastAdminError,
     NetSentryError,
@@ -143,7 +144,19 @@ def register_exception_handlers(app: FastAPI) -> None:
                 }
             },
         )
-
+    @app.exception_handler(InvalidCurrentPasswordError)
+    def invalid_current_password_handler(
+        request: Request, exc: InvalidCurrentPasswordError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
     @app.exception_handler(UserExistsError)
     def user_exists_handler(request: Request, exc: UserExistsError) -> JSONResponse:
         return JSONResponse(

@@ -29,7 +29,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(
+def login(
     request: Request,
     response: Response,
     body: LoginRequest,
@@ -70,11 +70,12 @@ async def login(
 
 
 @router.post("/logout", status_code=204)
-async def logout(
+def logout(
     request: Request,
     response: Response,
     principal: Principal = Depends(get_current_principal),
     auth_service: AuthService = Depends(get_auth_service),
+    settings: Settings = Depends(get_settings),
 ) -> Response:
     """Log out current user and revoke session token."""
     raw_token = principal.raw_token
@@ -88,17 +89,22 @@ async def logout(
         )
 
     # Clear cookie
-    response.delete_cookie(
+    # Clear cookie by setting empty value with Max-Age=0
+    response.set_cookie(
         key="netsentry_session",
+        value="",
+        max_age=0,
         path="/",
         httponly=True,
         samesite="strict",
+        secure=settings.session_cookie_secure,
     )
-    return Response(status_code=204)
+    response.status_code = 204
+    return response
 
 
 @router.get("/me", response_model=AuthMeResponse)
-async def get_me(
+def get_me(
     principal: Principal = Depends(get_current_principal),
     settings: Settings = Depends(get_settings),
 ) -> AuthMeResponse:
@@ -128,8 +134,9 @@ async def get_me(
 
 
 @router.post("/change-password", status_code=204)
-async def change_password(
+def change_password(
     request: Request,
+    response: Response,
     body: ChangePasswordRequest,
     principal: Principal = Depends(require_role(Role.ADMIN, Role.OPERATOR, Role.VIEWER)),
     auth_service: AuthService = Depends(get_auth_service),
@@ -149,4 +156,5 @@ async def change_password(
         current_raw_token=principal.raw_token,
         client_ip=client_ip,
     )
-    return Response(status_code=204)
+    response.status_code = 204
+    return response

@@ -24,7 +24,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("", response_model=list[UserOut])
-async def list_users(
+def list_users(
     principal: Principal = Depends(require_role(Role.ADMIN)),
     user_service: UserService = Depends(get_user_service),
 ) -> list[UserOut]:
@@ -45,7 +45,7 @@ async def list_users(
 
 
 @router.post("", response_model=UserOut, status_code=201)
-async def create_user(
+def create_user(
     request: Request,
     body: CreateUserRequest,
     principal: Principal = Depends(require_role(Role.ADMIN)),
@@ -73,7 +73,7 @@ async def create_user(
 
 
 @router.patch("/{user_id}", response_model=UserOut)
-async def update_user(
+def update_user(
     user_id: int,
     request: Request,
     body: UpdateUserRequest,
@@ -103,7 +103,7 @@ async def update_user(
 
 
 @router.post("/{user_id}/reset-password", status_code=204)
-async def reset_password(
+def reset_password(
     user_id: int,
     request: Request,
     body: ResetPasswordRequest,

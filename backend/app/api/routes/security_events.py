@@ -14,7 +14,7 @@ router = APIRouter(prefix="/security-events", tags=["security-events"])
 
 
 @router.get("", response_model=list[SecurityEventOut])
-async def list_security_events(
+def list_security_events(
     limit: int = Query(default=50, ge=1, le=200),
     before_id: int | None = Query(default=None),
     event_type: str | None = Query(default=None),

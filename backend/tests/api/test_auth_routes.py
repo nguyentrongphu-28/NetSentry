@@ -106,13 +106,30 @@ class TestAuthRoutes:
             headers={"Host": "testserver", "Origin": "http://testserver"},
         )
         assert logout_resp.status_code == 204
+        # New check for Set-Cookie Max-Age=0
+        set_cookie = logout_resp.headers.get("set-cookie")
+        assert set_cookie is not None
+        assert "Max-Age=0" in set_cookie
 
         # Subsequent call with previous session cookie returns 401
         me_resp = auth_api_client.get("/api/v1/auth/me")
         assert me_resp.status_code == 401
         assert me_resp.json()["error"]["code"] == "UNAUTHORIZED"
 
-    def test_must_change_password_blocks_other_endpoints(self, auth_api_client: TestClient) -> None:
+    def test_login_nonexistent_user_returns_invalid_credentials(self, auth_api_client: TestClient) -> None:
+        # Attempt login with a username that does not exist
+        resp = auth_api_client.post(
+            "/api/v1/auth/login",
+            json={"username": "ghost", "password": "doesnotmatter"},
+            headers={"Host": "testserver", "Origin": "http://testserver"},
+        )
+        # FastAPI returns 401 for invalid credentials (handled by exception handler)
+        assert resp.status_code == 401
+        data = resp.json()
+        assert data["error"]["code"] == "INVALID_CREDENTIALS"
+        # Ensure no user info leaked in the response
+        assert "user" not in data
+
         # Login with newuser (must_change_password=True)
         login_resp = auth_api_client.post(
             "/api/v1/auth/login",

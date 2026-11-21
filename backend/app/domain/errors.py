@@ -22,6 +22,8 @@ class AuthenticationFailedError(NetSentryError):
 
     code: str = "AUTH_FAILED"
 
+class InvalidCurrentPasswordError(NetSentryError):
+    code = "INVALID_CURRENT_PASSWORD"
 
 class ConnectionTimeoutError(NetSentryError):
     """Raised when connection or command execution times out."""
