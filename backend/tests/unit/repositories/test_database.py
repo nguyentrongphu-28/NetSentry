@@ -17,7 +17,7 @@ def test_init_db_creates_tables_and_sets_user_version(tmp_path: Path):
     try:
         # Check user_version
         row = conn.execute("PRAGMA user_version").fetchone()
-        assert row[0] == _SCHEMA_VERSION == 3
+        assert row[0] == _SCHEMA_VERSION == 5
 
         # Check tables exist
         tables = conn.execute(
@@ -32,6 +32,10 @@ def test_init_db_creates_tables_and_sets_user_version(tmp_path: Path):
         assert "security_events" in table_names
         assert "config_snapshots" in table_names
         assert "ai_explanations" in table_names
+        assert "baselines" in table_names
+        assert "drift_results" in table_names
+        assert "remediation_plans" in table_names
+        assert "remediation_events" in table_names
 
         # Check indexes exist
         indexes = conn.execute(
@@ -55,7 +59,7 @@ def test_init_db_is_idempotent(tmp_path: Path):
     conn = connect(db_file)
     try:
         row = conn.execute("PRAGMA user_version").fetchone()
-        assert row[0] == 3
+        assert row[0] == 5
     finally:
         conn.close()
 

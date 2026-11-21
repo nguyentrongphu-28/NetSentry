@@ -91,7 +91,7 @@ export function AuditRunPage(): React.JSX.Element {
       {!isFailed && <AiExplainPanel runId={summary.id} />}
 
       {/* Findings Table only when status is COMPLETED */}
-      {!isFailed && <FindingsTable findings={findings} />}
+      {!isFailed && <FindingsTable findings={findings} runId={summary.id} />}
     </div>
   );
 }

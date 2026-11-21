@@ -12,6 +12,8 @@ import { DeviceDetailPage } from "./pages/DeviceDetailPage";
 import { AuditRunPage } from "./pages/AuditRunPage";
 import { UsersPage } from "./pages/UsersPage";
 import { SecurityEventsPage } from "./pages/SecurityEventsPage";
+import { RemediationPlansPage } from "./pages/RemediationPlansPage";
+import { RemediationPlanDetailPage } from "./pages/RemediationPlanDetailPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
 export function createQueryClient(): QueryClient {
@@ -53,6 +55,8 @@ export function AppRoutes(): React.JSX.Element {
         <Route path="/" element={<DevicesPage />} />
         <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
         <Route path="/audits/:runId" element={<AuditRunPage />} />
+        <Route path="/remediation" element={<RemediationPlansPage />} />
+        <Route path="/remediation/:planId" element={<RemediationPlanDetailPage />} />
         <Route
           path="/users"
           element={

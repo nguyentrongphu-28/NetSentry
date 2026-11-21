@@ -230,3 +230,104 @@ class ExplanationNotFoundError(NetSentryError):
 
     code: str = "EXPLANATION_NOT_FOUND"
 
+
+class BaselineNotFoundError(NetSentryError):
+    """Raised when requested baseline is not found."""
+
+    code: str = "BASELINE_NOT_FOUND"
+
+
+class BaselineFailuresNotConfirmedError(NetSentryError):
+    """Raised when approving a baseline for a run with failures without explicit confirmation."""
+
+    code: str = "BASELINE_FAILURES_NOT_CONFIRMED"
+
+    def __init__(self, message: str, *, fail_count: int = 0) -> None:
+        super().__init__(message)
+        self.fail_count = fail_count
+
+
+class SnapshotInUseError(NetSentryError):
+    """Raised when attempting to delete a snapshot that is pinned as an ACTIVE baseline."""
+
+    code: str = "SNAPSHOT_IN_USE"
+
+
+class BaselineDisabledError(NetSentryError):
+    """Raised when baseline and drift feature is disabled."""
+
+    code: str = "BASELINE_DISABLED"
+
+
+# ---------------------------------------------------------------------------
+# Remediation errors (Remediation Plan phase)
+# ---------------------------------------------------------------------------
+
+
+class RemediationDisabledError(NetSentryError):
+    """Raised when remediation feature is disabled."""
+
+    code: str = "REMEDIATION_DISABLED"
+
+
+class NotEligibleError(NetSentryError):
+    """Raised when a rule is not eligible for automated remediation or platform mismatch."""
+
+    code: str = "NOT_ELIGIBLE"
+
+
+class FindingNotFailingError(NetSentryError):
+    """Raised when attempting to propose remediation for a non-failing finding."""
+
+    code: str = "FINDING_NOT_FAILING"
+
+
+class ActivePlanExistsError(NetSentryError):
+    """Raised when an active remediation plan already exists for device and rule."""
+
+    code: str = "ACTIVE_PLAN_EXISTS"
+
+
+class PlanNotFoundError(NetSentryError):
+    """Raised when requested remediation plan is not found."""
+
+    code: str = "PLAN_NOT_FOUND"
+
+
+class PlanStaleError(NetSentryError):
+    """Raised when audit run is too old or finding status has changed since proposal."""
+
+    code: str = "PLAN_STALE"
+
+
+class PlanExpiredError(NetSentryError):
+    """Raised when remediation plan has exceeded its TTL."""
+
+    code: str = "PLAN_EXPIRED"
+
+
+class InvalidTransitionError(NetSentryError):
+    """Raised when requested state transition is invalid for the plan's current status."""
+
+    code: str = "INVALID_TRANSITION"
+
+
+class SelfApprovalError(NetSentryError):
+    """Raised when proposer attempts to approve their own remediation plan."""
+
+    code: str = "SELF_APPROVAL_NOT_ALLOWED"
+
+
+class ReauthFailedError(NetSentryError):
+    """Raised when password re-authentication fails during approval step-up."""
+
+    code: str = "REAUTH_FAILED"
+
+
+class UserSessionRequiredError(NetSentryError):
+    """Raised when an action requires an interactive user session instead of api_key or disabled auth."""
+
+    code: str = "USER_SESSION_REQUIRED"
+
+
+

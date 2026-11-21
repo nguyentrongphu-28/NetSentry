@@ -106,9 +106,81 @@ CREATE TABLE IF NOT EXISTS ai_explanations (
     input_sha256    TEXT NOT NULL,
     content_json    TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS baselines (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id              TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+    snapshot_id            INTEGER NOT NULL,
+    content_sha256         TEXT NOT NULL,
+    status                 TEXT NOT NULL CHECK (status IN ('ACTIVE','RETIRED')),
+    approved_by            TEXT NOT NULL,
+    approved_at            TEXT NOT NULL,
+    note                   TEXT,
+    fail_count_at_approval INTEGER NOT NULL,
+    retired_at             TEXT,
+    retired_by             TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_baseline_active
+    ON baselines(device_id) WHERE status = 'ACTIVE';
+CREATE INDEX IF NOT EXISTS idx_baseline_device
+    ON baselines(device_id, approved_at DESC);
+
+CREATE TABLE IF NOT EXISTS drift_results (
+    run_id                  INTEGER PRIMARY KEY REFERENCES audit_runs(id) ON DELETE CASCADE,
+    device_id               TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+    baseline_id             INTEGER NOT NULL,
+    checked_at              TEXT NOT NULL,
+    status                  TEXT NOT NULL CHECK (status IN ('IN_SYNC','DRIFTED')),
+    added_blocks            INTEGER NOT NULL,
+    removed_blocks          INTEGER NOT NULL,
+    changed_blocks          INTEGER NOT NULL,
+    security_relevant_count INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_drift_device
+    ON drift_results(device_id, checked_at DESC);
+
+CREATE TABLE IF NOT EXISTS remediation_plans (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id            TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+    run_id               INTEGER NOT NULL,
+    rule_id              TEXT NOT NULL,
+    template_id          TEXT NOT NULL,
+    template_version     INTEGER NOT NULL,
+    risk_level           TEXT NOT NULL CHECK (risk_level IN ('LOW','MEDIUM','HIGH')),
+    commands_json        TEXT NOT NULL,
+    persist_after_verify INTEGER NOT NULL DEFAULT 0,
+    plan_hash            TEXT NOT NULL,
+    status               TEXT NOT NULL CHECK (status IN (
+        'PROPOSED','APPROVED','REJECTED','CANCELLED','EXPIRED',
+        'APPLYING','APPLIED','VERIFIED','VERIFY_FAILED','FAILED','ROLLED_BACK')),
+    proposed_by          TEXT NOT NULL,
+    proposed_at          TEXT NOT NULL,
+    decided_by           TEXT,
+    decided_at           TEXT,
+    decision_reason      TEXT,
+    approved_plan_hash   TEXT,
+    expires_at           TEXT NOT NULL,
+    updated_at           TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_plan_active
+    ON remediation_plans(device_id, rule_id)
+    WHERE status IN ('PROPOSED','APPROVED','APPLYING');
+CREATE INDEX IF NOT EXISTS idx_plan_device
+    ON remediation_plans(device_id, proposed_at DESC);
+
+CREATE TABLE IF NOT EXISTS remediation_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id     INTEGER NOT NULL REFERENCES remediation_plans(id) ON DELETE CASCADE,
+    occurred_at TEXT NOT NULL,
+    actor       TEXT,
+    event_type  TEXT NOT NULL,
+    detail      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_plan_events
+    ON remediation_events(plan_id, id);
 """
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 5
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:

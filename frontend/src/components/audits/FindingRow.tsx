@@ -1,19 +1,39 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, Copy, Check } from "lucide-react";
-import { FindingOut } from "../../types/api";
+import { ChevronDown, ChevronRight, Copy, Check, Wrench, HelpCircle } from "lucide-react";
+import { FindingOut, ManualGuidanceOut, RemediationTemplateOut } from "../../types/api";
 import { StatusBadge } from "./StatusBadge";
 import { SeverityBadge } from "./SeverityBadge";
 import { STRINGS } from "../../i18n/strings";
+import { useAuth } from "../../auth/AuthProvider";
+import { RemediationPreviewDialog } from "../remediation/RemediationPreviewDialog";
+import { ManualGuidanceDialog } from "../remediation/ManualGuidanceDialog";
 
 export interface FindingRowProps {
   finding: FindingOut;
+  runId?: number;
+  template?: RemediationTemplateOut;
+  manualGuidance?: ManualGuidanceOut;
 }
 
-export function FindingRow({ finding }: FindingRowProps): React.JSX.Element {
+export function FindingRow({
+  finding,
+  runId,
+  template,
+  manualGuidance,
+}: FindingRowProps): React.JSX.Element {
+  const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isManualOpen, setIsManualOpen] = useState(false);
   const copyTimerRef = useRef<number | null>(null);
+
+  const canPropose =
+    finding.status === "FAIL" &&
+    !!template &&
+    (user?.role === "admin" || user?.role === "operator");
+  const hasManualGuidance = finding.status === "FAIL" && !!manualGuidance;
 
   useEffect(() => {
     return () => {
@@ -53,12 +73,19 @@ export function FindingRow({ finding }: FindingRowProps): React.JSX.Element {
 
   return (
     <div className="border-b border-gray-100 last:border-b-0">
-      {/* Header Row (Button for a11y keyboard and screen reader support) */}
-      <button
-        type="button"
+      {/* Header Row (Accessible div for keyboard and screen reader support) */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setIsExpanded((prev) => !prev)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setIsExpanded((prev) => !prev);
+          }
+        }}
         aria-expanded={isExpanded}
-        className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:bg-gray-50 transition-colors"
+        className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:bg-gray-50 transition-colors cursor-pointer select-none"
       >
         <div className="flex items-center space-x-3 min-w-0 pr-4">
           <span className="text-gray-400 flex-shrink-0" aria-hidden="true">
@@ -77,10 +104,36 @@ export function FindingRow({ finding }: FindingRowProps): React.JSX.Element {
         </div>
 
         <div className="flex items-center space-x-2 flex-shrink-0">
+          {canPropose && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPreviewOpen(true);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 shadow-xs transition-colors"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>{STRINGS.remediation.proposeBtn}</span>
+            </button>
+          )}
+          {hasManualGuidance && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsManualOpen(true);
+              }}
+              className="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-800 font-medium underline px-1 py-0.5"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>{STRINGS.remediation.manualGuideBtn}</span>
+            </button>
+          )}
           <SeverityBadge severity={finding.severity} />
           <StatusBadge status={finding.status} />
         </div>
-      </button>
+      </div>
 
       {/* Expanded Details */}
       {isExpanded && (
@@ -170,6 +223,25 @@ export function FindingRow({ finding }: FindingRowProps): React.JSX.Element {
             ℹ️ {STRINGS.auditDetail.disclaimer}
           </div>
         </div>
+      )}
+
+      {/* Remediation Preview Dialog */}
+      {canPropose && template && (
+        <RemediationPreviewDialog
+          isOpen={isPreviewOpen}
+          onClose={() => setIsPreviewOpen(false)}
+          runId={runId || 0}
+          template={template}
+        />
+      )}
+
+      {/* Manual Guidance Dialog */}
+      {hasManualGuidance && manualGuidance && (
+        <ManualGuidanceDialog
+          isOpen={isManualOpen}
+          onClose={() => setIsManualOpen(false)}
+          guidance={manualGuidance}
+        />
       )}
     </div>
   );

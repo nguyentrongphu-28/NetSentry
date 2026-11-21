@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { ArrowLeft, Play } from "lucide-react";
 import { useDevice } from "../hooks/useDevice";
 import { useAuditRuns } from "../hooks/useAuditRuns";
 import { AuditHistoryTable } from "../components/audits/AuditHistoryTable";
 import { SnapshotList } from "../components/devices/SnapshotList";
+import { DeviceBaselineTab } from "../components/baseline/DeviceBaselineTab";
 import { RunAuditDialog } from "../components/devices/RunAuditDialog";
 import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
@@ -16,7 +17,11 @@ import { useCan } from "../auth/useCan";
 
 export function DeviceDetailPage(): React.JSX.Element {
   const { deviceId } = useParams<{ deviceId: string }>();
-  const [activeTab, setActiveTab] = useState<"audits" | "snapshots">("audits");
+  const [searchParams] = useSearchParams();
+  const paramTab = searchParams.get("tab");
+  const initialTab: "audits" | "snapshots" | "baseline" =
+    paramTab === "baseline" ? "baseline" : paramTab === "snapshots" ? "snapshots" : "audits";
+  const [activeTab, setActiveTab] = useState<"audits" | "snapshots" | "baseline">(initialTab);
   const [offset, setOffset] = useState(0);
   const limit = 20;
   const canAudit = useCan("audit:run");
@@ -234,6 +239,17 @@ export function DeviceDetailPage(): React.JSX.Element {
               {STRINGS.snapshots.tabTitle}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setActiveTab("baseline")}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "baseline"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            {STRINGS.baseline.tabTitle}
+          </button>
         </nav>
       </div>
 
@@ -271,6 +287,10 @@ export function DeviceDetailPage(): React.JSX.Element {
 
       {activeTab === "snapshots" && canAudit && (
         <SnapshotList deviceId={device.device_id} />
+      )}
+
+      {activeTab === "baseline" && (
+        <DeviceBaselineTab deviceId={device.device_id} />
       )}
 
       {/* Run Audit Dialog */}

@@ -6,7 +6,8 @@ import logging
 from typing import Callable
 
 from app.domain.entities.snapshot import ConfigSnapshot
-from app.domain.errors import ContentDisabledError, SnapshotNotFoundError
+from app.domain.errors import ContentDisabledError, SnapshotInUseError, SnapshotNotFoundError
+from app.domain.interfaces.baseline_repository import BaselineRepository
 from app.domain.interfaces.snapshot_file_store import SnapshotFileStore
 from app.domain.interfaces.snapshot_repository import SnapshotRepository
 from app.security.config_normalizer import ConfigNormalizer
@@ -25,6 +26,7 @@ class SnapshotService:
         redactor: ConfigRedactor,
         normalizer: type[ConfigNormalizer] = ConfigNormalizer,
         *,
+        baseline_repository: BaselineRepository | None = None,
         enabled: bool = True,
         keep: int = 30,
         content_api_enabled: bool = True,
@@ -34,6 +36,7 @@ class SnapshotService:
         self.file_store = file_store
         self.redactor = redactor
         self.normalizer = normalizer
+        self.baseline_repository = baseline_repository
         self.enabled = enabled
         self.keep = max(1, min(500, keep))
         self.content_api_enabled = content_api_enabled
@@ -76,7 +79,15 @@ class SnapshotService:
 
         # Enforce retention policy
         try:
-            removed_files = self.snapshot_repository.enforce_retention(device_id, self.keep)
+            excluded: set[int] = set()
+            if self.baseline_repository is not None:
+                active_bl = self.baseline_repository.get_active(device_id)
+                if active_bl is not None:
+                    excluded.add(active_bl.snapshot_id)
+
+            removed_files = self.snapshot_repository.enforce_retention(
+                device_id, self.keep, excluded_snapshot_ids=excluded
+            )
             for f in removed_files:
                 self.file_store.delete_file(f)
         except Exception as ret_exc:
@@ -126,6 +137,9 @@ class SnapshotService:
         return snapshot, content
 
     def delete(self, snapshot_id: int) -> None:
+        if self.baseline_repository is not None and self.baseline_repository.is_snapshot_pinned(snapshot_id):
+            raise SnapshotInUseError(f"Snapshot '{snapshot_id}' is in use as an active baseline and cannot be deleted")
+
         file_name = self.snapshot_repository.delete(snapshot_id)
         if file_name is None:
             raise SnapshotNotFoundError(f"Snapshot '{snapshot_id}' not found")

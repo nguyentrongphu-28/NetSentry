@@ -144,25 +144,44 @@ class SqliteSnapshotRepository(SnapshotRepository):
                 conn.execute("DELETE FROM config_snapshots WHERE device_id = ?", (device_id,))
                 return file_names
 
-    def enforce_retention(self, device_id: str, keep: int) -> list[str]:
+    def enforce_retention(
+        self, device_id: str, keep: int, excluded_snapshot_ids: set[int] | None = None
+    ) -> list[str]:
         if keep < 1:
             keep = 1
         with self._get_conn() as conn:
             with conn:
-                # Find IDs of snapshots beyond the `keep` newest ones
+                excluded = excluded_snapshot_ids or set()
+                # Select candidate snapshots for device ordered DESC
                 rows = conn.execute(
                     """
                     SELECT id, file_name FROM config_snapshots
                     WHERE device_id = ?
                     ORDER BY created_at DESC
-                    LIMIT -1 OFFSET ?
                     """,
-                    (device_id, keep),
+                    (device_id,),
                 ).fetchall()
-                if not rows:
+
+                # Filter out excluded snapshots from retention counting
+                retained_count = 0
+                to_delete: list[tuple[int, str]] = []
+
+                for r in rows:
+                    snap_id = r["id"]
+                    file_name = str(r["file_name"])
+                    if snap_id in excluded:
+                        # Pinned snapshot is never deleted and does not count towards keep limit
+                        continue
+
+                    retained_count += 1
+                    if retained_count > keep:
+                        to_delete.append((snap_id, file_name))
+
+                if not to_delete:
                     return []
-                ids_to_delete = [r["id"] for r in rows]
-                file_names = [str(r["file_name"]) for r in rows]
+
+                ids_to_delete = [item[0] for item in to_delete]
+                file_names = [item[1] for item in to_delete]
                 placeholders = ",".join("?" for _ in ids_to_delete)
                 conn.execute(
                     f"DELETE FROM config_snapshots WHERE id IN ({placeholders})",

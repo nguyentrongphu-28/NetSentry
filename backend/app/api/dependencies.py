@@ -10,6 +10,7 @@ from app.api.deps import (
     get_auth_service,
     get_current_principal,
     get_device_service,
+    get_remediation_service,
     get_security_event_service,
     get_session_repository,
     get_settings,

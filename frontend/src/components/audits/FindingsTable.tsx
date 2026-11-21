@@ -1,16 +1,25 @@
 import React, { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { FindingOut } from "../../types/api";
 import { FindingRow } from "./FindingRow";
 import { FINDING_STATUS_ORDER, SEVERITY_ORDER } from "../../utils/format";
 import { STRINGS } from "../../i18n/strings";
+import { getRemediationTemplates } from "../../services/remediationApi";
 
 export interface FindingsTableProps {
   findings: FindingOut[];
+  runId?: number;
 }
 
-export function FindingsTable({ findings }: FindingsTableProps): React.JSX.Element {
+export function FindingsTable({ findings, runId }: FindingsTableProps): React.JSX.Element {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
+
+  const { data: templatesData } = useQuery({
+    queryKey: ["remediation-templates"],
+    queryFn: getRemediationTemplates,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const filteredAndSortedFindings = useMemo(() => {
     return [...findings]
@@ -97,9 +106,19 @@ export function FindingsTable({ findings }: FindingsTableProps): React.JSX.Eleme
         </div>
       ) : (
         <div className="divide-y divide-gray-100">
-          {filteredAndSortedFindings.map((finding) => (
-            <FindingRow key={finding.rule_id} finding={finding} />
-          ))}
+          {filteredAndSortedFindings.map((finding) => {
+            const template = templatesData?.templates?.find((t) => t.rule_id === finding.rule_id);
+            const manualGuidance = templatesData?.manual_guidance?.find((g) => g.rule_id === finding.rule_id);
+            return (
+              <FindingRow
+                key={finding.rule_id}
+                finding={finding}
+                runId={runId}
+                template={template}
+                manualGuidance={manualGuidance}
+              />
+            );
+          })}
         </div>
       )}
     </div>

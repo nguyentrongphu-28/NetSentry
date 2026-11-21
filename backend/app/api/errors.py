@@ -11,12 +11,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.dependencies import UnauthorizedError
 from app.domain.errors import (
     AccountLockedError,
+    ActivePlanExistsError,
     AiBusyError,
     AiDisabledError,
     AiOutputInvalidError,
     AiUnavailableError,
     AuditAlreadyRunningError,
     AuditNotFoundError,
+    BaselineDisabledError,
+    BaselineFailuresNotConfirmedError,
+    BaselineNotFoundError,
     BodyCredentialsDisabledError,
     ContentDisabledError,
     CredentialsRequiredError,
@@ -24,19 +28,30 @@ from app.domain.errors import (
     DiffInputError,
     DuplicateDeviceError,
     ExplanationNotFoundError,
+    FindingNotFailingError,
     ForbiddenError,
     InvalidCredentialsError,
     InvalidCurrentPasswordError,
     InvalidDeviceError,
+    InvalidTransitionError,
     LastAdminError,
     NetSentryError,
     NotAuthenticatedError,
+    NotEligibleError,
     OriginNotAllowedError,
     PasswordChangeRequiredError,
+    PlanExpiredError,
+    PlanNotFoundError,
+    PlanStaleError,
     RateLimitedError,
+    ReauthFailedError,
+    RemediationDisabledError,
+    SelfApprovalError,
+    SnapshotInUseError,
     SnapshotNotFoundError,
     UserExistsError,
     UserNotFoundError,
+    UserSessionRequiredError,
     WeakPasswordError,
 )
 
@@ -402,6 +417,133 @@ def register_exception_handlers(app: FastAPI) -> None:
                     "message": str(exc),
                 }
             },
+        )
+
+    @app.exception_handler(BaselineNotFoundError)
+    def baseline_not_found_handler(request: Request, exc: BaselineNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(BaselineFailuresNotConfirmedError)
+    def baseline_failures_not_confirmed_handler(
+        request: Request, exc: BaselineFailuresNotConfirmedError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(SnapshotInUseError)
+    def snapshot_in_use_handler(request: Request, exc: SnapshotInUseError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(BaselineDisabledError)
+    def baseline_disabled_handler(request: Request, exc: BaselineDisabledError) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            },
+        )
+
+    @app.exception_handler(RemediationDisabledError)
+    def remediation_disabled_handler(request: Request, exc: RemediationDisabledError) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(NotEligibleError)
+    def not_eligible_handler(request: Request, exc: NotEligibleError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(FindingNotFailingError)
+    def finding_not_failing_handler(request: Request, exc: FindingNotFailingError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(ReauthFailedError)
+    def reauth_failed_handler(request: Request, exc: ReauthFailedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(ActivePlanExistsError)
+    def active_plan_exists_handler(request: Request, exc: ActivePlanExistsError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(PlanStaleError)
+    def plan_stale_handler(request: Request, exc: PlanStaleError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(PlanExpiredError)
+    def plan_expired_handler(request: Request, exc: PlanExpiredError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(InvalidTransitionError)
+    def invalid_transition_handler(request: Request, exc: InvalidTransitionError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(PlanNotFoundError)
+    def plan_not_found_handler(request: Request, exc: PlanNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(SelfApprovalError)
+    def self_approval_handler(request: Request, exc: SelfApprovalError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(UserSessionRequiredError)
+    def user_session_required_handler(request: Request, exc: UserSessionRequiredError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={"error": {"code": exc.code, "message": str(exc)}},
         )
 
     @app.exception_handler(CredentialsRequiredError)

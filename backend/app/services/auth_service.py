@@ -12,6 +12,7 @@ from app.domain.errors import (
     InvalidCredentialsError,
     InvalidCurrentPasswordError,
     RateLimitedError,
+    ReauthFailedError,
     WeakPasswordError,
 )
 from app.domain.interfaces.security_event_repository import SecurityEventRepository
@@ -206,15 +207,13 @@ class AuthService:
             target=actor_username,
             detail="User logged out",
         )
-    def change_password(
+    def _verify_and_handle_password_attempt(
         self,
         user_id: int,
-        current_password: str,
-        new_password: str,
-        current_raw_token: str | None = None,
+        password: str,
         client_ip: str | None = None,
+        context: str = "reauth",
     ) -> None:
-        """Change password, revoke other sessions, clear must_change_password."""
         now = self._now()
         user = self._user_repo.get_by_id(user_id)
         if user is None:
@@ -223,8 +222,18 @@ class AuthService:
         if full_record is None:
             raise InvalidCredentialsError("User not found.")
 
-        if not self._hasher.verify(full_record.password_hash, current_password):
-            # Count wrong guesses: a stolen session must not allow unlimited guessing.
+        if full_record.locked_until and full_record.locked_until > now:
+            self._event_repo.add(
+                occurred_at=now,
+                event_type=SecurityEventType.LOGIN_LOCKED,
+                actor_username=user.username,
+                client_ip=client_ip,
+                target=user.username,
+                detail=f"Attempt on locked account during {context}",
+            )
+            raise AccountLockedError("Account is temporarily locked. Please try again later.")
+
+        if not self._hasher.verify(full_record.password_hash, password):
             _, locked_until = self._user_repo.register_failed_attempt(
                 user_id,
                 at=now,
@@ -241,12 +250,53 @@ class AuthService:
                 actor_username=user.username,
                 client_ip=client_ip,
                 target=user.username,
-                detail="Wrong current password on change-password",
+                detail=f"Wrong password on {context}",
             )
             if locked_until is not None:
                 self._session_repo.delete_all_for_user(user_id)
                 raise AccountLockedError("Account is temporarily locked. Please try again later.")
-            raise InvalidCurrentPasswordError("Current password is incorrect.")
+            if context == "change-password":
+                raise InvalidCurrentPasswordError("Current password is incorrect.")
+            raise ReauthFailedError("Invalid password for re-authentication.")
+
+    def verify_password_for_user(
+        self,
+        user_id: int,
+        password: str,
+        client_ip: str | None = None,
+    ) -> None:
+        """Verify user's password for step-up actions (e.g. remediation approval).
+
+        On failure, increments failed attempts, records LOGIN_FAILED / LOGIN_LOCKED,
+        revokes sessions if locked, and raises ReauthFailedError or AccountLockedError.
+        """
+        self._verify_and_handle_password_attempt(
+            user_id=user_id,
+            password=password,
+            client_ip=client_ip,
+            context="step-up-reauth",
+        )
+
+    def change_password(
+        self,
+        user_id: int,
+        current_password: str,
+        new_password: str,
+        current_raw_token: str | None = None,
+        client_ip: str | None = None,
+    ) -> None:
+        """Change password, revoke other sessions, clear must_change_password."""
+        now = self._now()
+        user = self._user_repo.get_by_id(user_id)
+        if user is None:
+            raise InvalidCredentialsError("User not found.")
+
+        self._verify_and_handle_password_attempt(
+            user_id=user_id,
+            password=current_password,
+            client_ip=client_ip,
+            context="change-password",
+        )
 
         if current_password == new_password:
             raise WeakPasswordError("New password must be different from current password.")

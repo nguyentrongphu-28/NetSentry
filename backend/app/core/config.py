@@ -55,6 +55,24 @@ class Settings:
     ai_timeout_seconds: int = 120
     ai_max_concurrency: int = 1
     ai_rate_limit: str = "5/3600"
+    # Baseline & Drift configuration
+    baseline_enabled: bool = True
+    drift_max_blocks: int = 500
+    # Remediation configuration
+    remediation_enabled: bool = False
+    remediation_proposal_ttl_minutes: int = 120
+    remediation_approval_ttl_minutes: int = 60
+    remediation_max_audit_age_minutes: int = 60
+    remediation_require_distinct_approver: bool = True
+
+    def __post_init__(self) -> None:
+        if self.public_mode:
+            # Enforce public mode constraints
+            object.__setattr__(self, "snapshot_content_api", False)
+            object.__setattr__(self, "allow_body_credentials", False)
+            object.__setattr__(self, "api_key_auth", False)
+            object.__setattr__(self, "ollama_allow_remote", False)
+            object.__setattr__(self, "remediation_require_distinct_approver", True)
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -242,6 +260,54 @@ class Settings:
 
         ai_rate_limit = env.get("NETSENTRY_AI_RATE_LIMIT", "5/3600").strip()
 
+        # Baseline configuration
+        baseline_enabled_raw = env.get("NETSENTRY_BASELINE_ENABLED", "1").strip().lower()
+        baseline_enabled = baseline_enabled_raw in ("1", "true", "yes")
+
+        if not snapshot_enabled and baseline_enabled:
+            import logging
+            logging.getLogger(__name__).warning(
+                "NETSENTRY_BASELINE_ENABLED=1 but NETSENTRY_SNAPSHOT_ENABLED=0. Forcing baseline_enabled=False."
+            )
+            baseline_enabled = False
+
+        try:
+            drift_max_blocks = int(env.get("NETSENTRY_DRIFT_MAX_BLOCKS", "500"))
+            if not (1 <= drift_max_blocks <= 5000):
+                raise ConfigError("NETSENTRY_DRIFT_MAX_BLOCKS must be between 1 and 5000")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_DRIFT_MAX_BLOCKS: {exc}") from exc
+
+        # Remediation configuration
+        remediation_enabled_raw = env.get("NETSENTRY_REMEDIATION_ENABLED", "0").strip().lower()
+        remediation_enabled = remediation_enabled_raw in ("1", "true", "yes")
+
+        try:
+            remediation_proposal_ttl_minutes = int(env.get("NETSENTRY_REMEDIATION_PROPOSAL_TTL_MINUTES", "120"))
+            if not (5 <= remediation_proposal_ttl_minutes <= 1440):
+                raise ConfigError("NETSENTRY_REMEDIATION_PROPOSAL_TTL_MINUTES must be between 5 and 1440")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_REMEDIATION_PROPOSAL_TTL_MINUTES: {exc}") from exc
+
+        try:
+            remediation_approval_ttl_minutes = int(env.get("NETSENTRY_REMEDIATION_APPROVAL_TTL_MINUTES", "60"))
+            if not (5 <= remediation_approval_ttl_minutes <= 1440):
+                raise ConfigError("NETSENTRY_REMEDIATION_APPROVAL_TTL_MINUTES must be between 5 and 1440")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_REMEDIATION_APPROVAL_TTL_MINUTES: {exc}") from exc
+
+        try:
+            remediation_max_audit_age_minutes = int(env.get("NETSENTRY_REMEDIATION_MAX_AUDIT_AGE_MINUTES", "60"))
+            if not (1 <= remediation_max_audit_age_minutes <= 1440):
+                raise ConfigError("NETSENTRY_REMEDIATION_MAX_AUDIT_AGE_MINUTES must be between 1 and 1440")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_REMEDIATION_MAX_AUDIT_AGE_MINUTES: {exc}") from exc
+
+        remediation_require_distinct_approver_raw = env.get("NETSENTRY_REMEDIATION_REQUIRE_DISTINCT_APPROVER", "1").strip().lower()
+        remediation_require_distinct_approver = remediation_require_distinct_approver_raw in ("1", "true", "yes")
+        if public_mode:
+            remediation_require_distinct_approver = True
+
         return cls(
             db_path=db_path,
             api_key=api_key,
@@ -275,4 +341,11 @@ class Settings:
             ai_timeout_seconds=ai_timeout_seconds,
             ai_max_concurrency=ai_max_concurrency,
             ai_rate_limit=ai_rate_limit,
+            baseline_enabled=baseline_enabled,
+            drift_max_blocks=drift_max_blocks,
+            remediation_enabled=remediation_enabled,
+            remediation_proposal_ttl_minutes=remediation_proposal_ttl_minutes,
+            remediation_approval_ttl_minutes=remediation_approval_ttl_minutes,
+            remediation_max_audit_age_minutes=remediation_max_audit_age_minutes,
+            remediation_require_distinct_approver=remediation_require_distinct_approver,
         )

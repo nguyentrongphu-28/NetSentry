@@ -43,8 +43,10 @@ class SnapshotRepository(ABC):
         ...
 
     @abstractmethod
-    def enforce_retention(self, device_id: str, keep: int) -> list[str]:
-        """Keep only the latest `keep` snapshots for a device; return file_names of removed ones."""
+    def enforce_retention(
+        self, device_id: str, keep: int, excluded_snapshot_ids: set[int] | None = None
+    ) -> list[str]:
+        """Keep only the latest `keep` non-pinned snapshots for a device; return file_names of removed ones."""
         ...
 
     @abstractmethod

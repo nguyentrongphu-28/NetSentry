@@ -23,8 +23,10 @@ from app.security.tokens import hash_token
 from app.services.ai_explain_service import AiExplainService
 from app.services.audit_run_service import AuditRunService
 from app.services.auth_service import AuthService
+from app.services.baseline_service import BaselineService
 from app.services.device_service import DeviceService
 from app.services.diff_service import DiffService
+from app.services.remediation_service import RemediationService
 from app.services.security_event_service import SecurityEventService
 from app.services.snapshot_service import SnapshotService
 from app.services.user_service import UserService
@@ -90,6 +92,14 @@ def get_diff_service(request: Request) -> DiffService:
 
 def get_ai_explain_service(request: Request) -> AiExplainService:
     return request.app.state.ai_explain_service
+
+
+def get_baseline_service(request: Request) -> BaselineService:
+    return request.app.state.baseline_service
+
+
+def get_remediation_service(request: Request) -> RemediationService:
+    return request.app.state.remediation_service
 
 
 def get_session_repository(request: Request) -> SessionRepository:

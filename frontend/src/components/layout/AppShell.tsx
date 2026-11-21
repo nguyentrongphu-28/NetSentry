@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LogOut, Shield, Activity, Users, ShieldAlert } from "lucide-react";
+import { LogOut, Shield, Activity, Users, ShieldAlert, Wrench } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
 import { useCan } from "../../auth/useCan";
 import { getHealth } from "../../services/devicesApi";
+import { getRemediationTemplates } from "../../services/remediationApi";
 import { HealthResponse } from "../../types/api";
 
 interface AppShellProps {
@@ -17,6 +19,18 @@ export function AppShell({ children }: AppShellProps): React.JSX.Element {
   const navigate = useNavigate();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
+
+  const { isError: isTemplatesError, error: templatesError } = useQuery({
+    queryKey: ["remediation-templates"],
+    queryFn: getRemediationTemplates,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isRemediationDisabled =
+    isTemplatesError &&
+    (templatesError?.message?.includes("REMEDIATION_DISABLED") ||
+      templatesError?.message?.includes("503"));
 
   useEffect(() => {
     let mounted = true;
@@ -67,6 +81,15 @@ export function AppShell({ children }: AppShellProps): React.JSX.Element {
               >
                 Thiết bị
               </Link>
+              {!isRemediationDisabled && (
+                <Link
+                  to="/remediation"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 rounded-md transition-colors"
+                >
+                  <Wrench className="w-4 h-4 text-gray-500" />
+                  <span>Kế hoạch sửa</span>
+                </Link>
+              )}
               {canManageUsers && (
                 <Link
                   to="/users"

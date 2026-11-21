@@ -1,6 +1,9 @@
 import React from "react";
-import { AlertTriangle, Clock, Server, Cpu } from "lucide-react";
-import { AuditRunSummaryOut } from "../../types/api";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, Clock, Server, Cpu, AlertOctagon, CheckCircle2 } from "lucide-react";
+import { AuditRunSummaryOut, DriftReportOut } from "../../types/api";
+import { getDrift } from "../../services/auditsApi";
 import { StatusBadge } from "./StatusBadge";
 import { formatDateTime, formatDuration } from "../../utils/format";
 import { STRINGS, getErrorCodeSuggestion } from "../../i18n/strings";
@@ -14,17 +17,48 @@ export function AuditSummaryHeader({
 }: AuditSummaryHeaderProps): React.JSX.Element {
   const isFailed = summary.status === "FAILED";
 
+  const { data: drift } = useQuery<DriftReportOut | null>({
+    queryKey: ["drift-run", summary.device_id, summary.id],
+    queryFn: () => getDrift(summary.device_id, summary.id),
+    enabled: summary.status === "COMPLETED",
+  });
+
+  const driftTotal =
+    drift && drift.summary
+      ? drift.summary.added_blocks + drift.summary.removed_blocks + drift.summary.changed_blocks
+      : 0;
+
   return (
     <div className="space-y-4">
       {/* Main Summary Card */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-xs p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-gray-100">
           <div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 flex-wrap gap-2">
               <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
                 Lượt kiểm toán #{summary.id}
               </h1>
               <StatusBadge status={summary.status} />
+              {drift && drift.summary.status === "DRIFTED" && (
+                <Link
+                  to={`/devices/${encodeURIComponent(summary.device_id)}?tab=baseline`}
+                  className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                  title="Bấm để xem phân tích Baseline & Drift"
+                >
+                  <AlertOctagon className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Lệch baseline: {driftTotal} khối</span>
+                </Link>
+              )}
+              {drift && drift.summary.status === "IN_SYNC" && (
+                <Link
+                  to={`/devices/${encodeURIComponent(summary.device_id)}?tab=baseline`}
+                  className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                  title="Bấm để xem phân tích Baseline & Drift"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{STRINGS.drift.inSync}</span>
+                </Link>
+              )}
             </div>
             <p className="mt-1 text-xs text-gray-500">
               Kiểm toán thiết bị <span className="font-semibold text-gray-700">{summary.device_id}</span>

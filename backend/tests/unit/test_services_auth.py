@@ -241,3 +241,39 @@ class TestSecurityEventService:
         assert len(events) >= 1
         assert events[0].event_type == SecurityEventType.USER_CREATED
         assert events[0].actor_username == "admin1"
+
+
+class TestStepUpPasswordVerification:
+    def test_verify_password_success(self, auth_stack) -> None:
+        auth_svc = auth_stack["auth_svc"]
+        user_svc = auth_stack["user_svc"]
+        event_svc = auth_stack["event_svc"]
+
+        user = user_svc.create_user("stepup_user", "ValidPassword123!", Role.ADMIN)
+        initial_event_count = len(event_svc.list_events())
+
+        # Correct password succeeds silently without creating events or sessions
+        auth_svc.verify_password_for_user(user.id, "ValidPassword123!", client_ip="10.0.0.1")
+        assert len(event_svc.list_events()) == initial_event_count
+
+    def test_verify_password_failure_increments_attempts_and_locks(self, auth_stack) -> None:
+        from app.domain.errors import AccountLockedError, ReauthFailedError
+
+        auth_svc = auth_stack["auth_svc"]
+        user_svc = auth_stack["user_svc"]
+
+        user = user_svc.create_user("lock_test_user", "ValidPassword123!", Role.ADMIN)
+
+        # 2 failed attempts (max is 3 in fixture)
+        for _ in range(2):
+            with pytest.raises(ReauthFailedError):
+                auth_svc.verify_password_for_user(user.id, "WrongPassword123!")
+
+        # 3rd failed attempt locks the account
+        with pytest.raises(AccountLockedError):
+            auth_svc.verify_password_for_user(user.id, "WrongPassword123!")
+
+        # Subsequent attempts raise AccountLockedError immediately
+        with pytest.raises(AccountLockedError):
+            auth_svc.verify_password_for_user(user.id, "ValidPassword123!")
+

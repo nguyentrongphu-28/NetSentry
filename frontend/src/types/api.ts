@@ -244,3 +244,167 @@ export interface AiExplanationOut {
   risks: RiskNoteOut[];
   generated_by_ai: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Baseline & Drift Types
+// ---------------------------------------------------------------------------
+
+export type BaselineStatus = "ACTIVE" | "RETIRED";
+
+export interface BaselineOut {
+  id: number;
+  device_id: string;
+  snapshot_id: number;
+  content_sha256: string;
+  status: BaselineStatus;
+  approved_by: string;
+  approved_at: string;
+  note: string | null;
+  fail_count_at_approval: number;
+  retired_at?: string | null;
+  retired_by?: string | null;
+}
+
+export interface ApproveBaselineIn {
+  snapshot_id: number;
+  note?: string | null;
+  confirm_with_failures?: boolean;
+}
+
+export type BlockChangeKind = "ADDED" | "REMOVED" | "CHANGED";
+
+export interface BlockChangeOut {
+  key: string;
+  kind: BlockChangeKind;
+  security_relevant: boolean;
+  added_lines: string[];
+  removed_lines: string[];
+  added_count: number;
+  removed_count: number;
+}
+
+export interface DriftSummaryOut {
+  status: "IN_SYNC" | "DRIFTED";
+  added_blocks: number;
+  removed_blocks: number;
+  changed_blocks: number;
+  security_relevant_count: number;
+}
+
+export interface DriftReportOut {
+  device_id: string;
+  baseline_id: number;
+  run_id: number;
+  lines_included: boolean;
+  summary: DriftSummaryOut;
+  blocks: BlockChangeOut[];
+  truncated: boolean;
+}
+
+export interface DriftHistoryItemOut {
+  run_id: number;
+  device_id: string;
+  baseline_id: number;
+  checked_at: string;
+  status: "IN_SYNC" | "DRIFTED";
+  added_blocks: number;
+  removed_blocks: number;
+  changed_blocks: number;
+  security_relevant_count: number;
+}
+
+export type RemediationPlanStatus =
+  | "PROPOSED"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "APPLYING"
+  | "APPLIED"
+  | "VERIFIED"
+  | "VERIFY_FAILED"
+  | "FAILED"
+  | "ROLLED_BACK";
+
+export type RemediationRiskLevel = "LOW" | "MEDIUM" | "HIGH";
+
+export interface ProposePlanIn {
+  persist_after_verify: boolean;
+}
+
+export interface ApprovePlanIn {
+  password: string;
+}
+
+export interface RejectPlanIn {
+  reason: string;
+}
+
+export interface PlanEventOut {
+  id: number;
+  plan_id: number;
+  occurred_at: string;
+  actor: string | null;
+  event_type: string;
+  detail: string | null;
+}
+
+export interface ExpectedVerificationOut {
+  rule_id: string;
+  expected_status: string;
+}
+
+export interface RemediationPlanOut {
+  id: number;
+  device_id: string;
+  run_id: number;
+  rule_id: string;
+  status: RemediationPlanStatus;
+  risk_level: RemediationRiskLevel;
+  persist_after_verify: boolean;
+  proposed_by: string;
+  proposed_at: string;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  expires_at: string;
+  plan_hash: string;
+}
+
+export interface RemediationPlanDetailOut extends RemediationPlanOut {
+  commands: string[];
+  impact: string;
+  risks: string;
+  expected_verification: ExpectedVerificationOut;
+  reversible: boolean;
+  rollback_note: string;
+  decide_reason?: string | null;
+  approved_hash_matches: boolean;
+  timeline: PlanEventOut[];
+}
+
+export interface RemediationTemplateOut {
+  rule_id: string;
+  version: string;
+  title: string;
+  commands: string[];
+  risk_level: RemediationRiskLevel;
+  impact: string;
+  risks: string;
+  reversible: boolean;
+  rollback_note: string;
+  platforms: string[];
+}
+
+export interface ManualGuidanceOut {
+  rule_id: string;
+  title: string;
+  remediation_guide: string;
+  verification_guide: string;
+  why_not_automated: string;
+}
+
+export interface TemplatesResponseOut {
+  templates: RemediationTemplateOut[];
+  manual_guidance: ManualGuidanceOut[];
+}
+

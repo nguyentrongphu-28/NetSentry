@@ -323,4 +323,24 @@ export const handlers = [
   http.get("/api/v1/devices/:deviceId/snapshots", () => {
     return HttpResponse.json([]);
   }),
+
+  // Baseline & Drift
+  http.get("/api/v1/devices/:deviceId/baseline", () => {
+    return HttpResponse.json(
+      { error: { code: "BASELINE_NOT_FOUND", message: "Baseline not found" } },
+      { status: 404 }
+    );
+  }),
+  http.get("/api/v1/devices/:deviceId/baselines", () => {
+    return HttpResponse.json([]);
+  }),
+  http.get("/api/v1/devices/:deviceId/drift", () => {
+    return HttpResponse.json(
+      { error: { code: "BASELINE_NOT_FOUND", message: "No active baseline" } },
+      { status: 404 }
+    );
+  }),
+  http.get("/api/v1/devices/:deviceId/drift/history", () => {
+    return HttpResponse.json([]);
+  }),
 ];

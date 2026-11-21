@@ -1,18 +1,22 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Camera, ArrowLeftRight, Trash2, Shield, Eye, AlertCircle } from "lucide-react";
-import { SnapshotOut, ConfigDiffOut } from "../../types/api";
+import { Camera, ArrowLeftRight, Trash2, Shield, Eye, AlertCircle, ShieldCheck } from "lucide-react";
+import { SnapshotOut, ConfigDiffOut, BaselineOut } from "../../types/api";
 import {
   listDeviceSnapshots,
   getSnapshot,
   getDeviceConfigDiff,
   deleteSnapshot,
+  getActiveBaseline,
+  approveBaseline,
 } from "../../services/auditsApi";
 import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
 import { Modal } from "../ui/Modal";
 import { ErrorBanner } from "../ui/ErrorBanner";
 import { DiffViewer } from "./DiffViewer";
+import { SetBaselineDialog } from "../baseline/SetBaselineDialog";
+import { ApiClientError } from "../../services/apiClient";
 import { formatDateTime } from "../../utils/format";
 import { STRINGS } from "../../i18n/strings";
 import { useCan } from "../../auth/useCan";
@@ -37,6 +41,16 @@ export function SnapshotList({ deviceId }: SnapshotListProps): React.JSX.Element
   const [isContentLoading, setIsContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
 
+  // Baseline dialog state
+  const [baselineSnapshot, setBaselineSnapshot] = useState<SnapshotOut | null>(null);
+
+  const {
+    data: activeBaseline,
+  } = useQuery<BaselineOut | null>({
+    queryKey: ["active-baseline", deviceId],
+    queryFn: () => getActiveBaseline(deviceId),
+  });
+
   const {
     data: snapshots = [],
     isLoading,
@@ -46,6 +60,20 @@ export function SnapshotList({ deviceId }: SnapshotListProps): React.JSX.Element
   } = useQuery<SnapshotOut[], Error>({
     queryKey: ["device-snapshots", deviceId],
     queryFn: () => listDeviceSnapshots(deviceId),
+  });
+
+  const approveBaselineMutation = useMutation({
+    mutationFn: (payload: { snapshotId: number; note: string; confirmWithFailures: boolean }) =>
+      approveBaseline(deviceId, {
+        snapshot_id: payload.snapshotId,
+        note: payload.note,
+        confirm_with_failures: payload.confirmWithFailures,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["active-baseline", deviceId] });
+      void queryClient.invalidateQueries({ queryKey: ["device-snapshots", deviceId] });
+      setBaselineSnapshot(null);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -62,10 +90,13 @@ export function SnapshotList({ deviceId }: SnapshotListProps): React.JSX.Element
       const detail = await getSnapshot(snapshotId);
       setViewSnapshot({ id: detail.id, content: detail.content });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("CONTENT_DISABLED") || msg.includes("403")) {
+      if (
+        (err instanceof ApiClientError && (err.code === "CONTENT_DISABLED" || err.status === 403)) ||
+        (err instanceof Error && (err.message.includes("CONTENT_DISABLED") || err.message.includes("403")))
+      ) {
         setContentError(STRINGS.snapshots.contentDisabled);
       } else {
+        const msg = err instanceof Error ? err.message : String(err);
         setContentError(msg || "Không thể tải nội dung snapshot.");
       }
     } finally {
@@ -182,6 +213,7 @@ export function SnapshotList({ deviceId }: SnapshotListProps): React.JSX.Element
               {snapshots.map((s) => {
                 const isFirst = selectedFirstRun === s.run_id;
                 const isSecond = selectedSecondRun === s.run_id;
+                const isPinned = activeBaseline?.snapshot_id === s.id;
 
                 return (
                   <tr
@@ -191,12 +223,19 @@ export function SnapshotList({ deviceId }: SnapshotListProps): React.JSX.Element
                     }`}
                   >
                     <td className="py-2.5 px-3 font-medium text-gray-900">
-                      <div className="flex items-center space-x-1.5">
-                        <Camera className="w-3.5 h-3.5 text-gray-400" />
-                        <span>#{s.id}</span>
+                      <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                        <div className="flex items-center space-x-1">
+                          <Camera className="w-3.5 h-3.5 text-gray-400" />
+                          <span>#{s.id}</span>
+                        </div>
                         {s.run_id && (
                           <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
                             Run #{s.run_id}
+                          </span>
+                        )}
+                        {isPinned && (
+                          <span className="text-[10px] text-indigo-700 bg-indigo-100 font-semibold px-1.5 py-0.2 rounded border border-indigo-200">
+                            {STRINGS.baseline.pinnedBadge}
                           </span>
                         )}
                       </div>
@@ -257,10 +296,25 @@ export function SnapshotList({ deviceId }: SnapshotListProps): React.JSX.Element
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                            className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                            icon={<ShieldCheck className="w-3.5 h-3.5" />}
+                            onClick={() => setBaselineSnapshot(s)}
+                            title={STRINGS.baseline.setBaselineBtn}
+                          />
+                        )}
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isPinned}
+                            className={
+                              isPinned
+                                ? "text-gray-300 cursor-not-allowed hover:bg-transparent"
+                                : "text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                            }
                             icon={<Trash2 className="w-3.5 h-3.5" />}
-                            onClick={() => handleDelete(s.id)}
-                            title="Xóa snapshot"
+                            onClick={() => !isPinned && handleDelete(s.id)}
+                            title={isPinned ? STRINGS.baseline.pinnedCannotDelete : "Xóa snapshot"}
                           />
                         )}
                       </div>
@@ -300,6 +354,23 @@ export function SnapshotList({ deviceId }: SnapshotListProps): React.JSX.Element
       >
         {diffResult && <DiffViewer diff={diffResult} />}
       </Modal>
+
+      {/* Set Baseline Dialog */}
+      {baselineSnapshot && (
+        <SetBaselineDialog
+          isOpen={baselineSnapshot !== null}
+          onClose={() => setBaselineSnapshot(null)}
+          snapshotId={baselineSnapshot.id}
+          isLoading={approveBaselineMutation.isPending}
+          onConfirm={async ({ note, confirmWithFailures }) => {
+            await approveBaselineMutation.mutateAsync({
+              snapshotId: baselineSnapshot.id,
+              note,
+              confirmWithFailures,
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

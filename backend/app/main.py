@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_exception_handlers
 from app.api.middleware import OriginCheckMiddleware, SecurityHeadersMiddleware
-from app.api.routes import ai, audits, auth, compare, devices, health, security_events, snapshots, users
+from app.api.routes import ai, audits, auth, baselines, compare, devices, health, remediation, security_events, snapshots, users
 from app.core.config import Settings
 from app.clients.ollama_client import OllamaClient
 from app.factories.connector_factory import ConnectorFactory, build_default_connector_factory
@@ -17,6 +17,9 @@ from app.repositories.database import connect, init_db
 from app.repositories.device_repository import SqliteDeviceRepository
 from app.repositories.file_snapshot_store import FileSnapshotStore
 from app.repositories.sqlite_ai_explanation_repository import SqliteAiExplanationRepository
+from app.repositories.sqlite_baseline_repository import SqliteBaselineRepository
+from app.repositories.sqlite_drift_repository import SqliteDriftRepository
+from app.repositories.sqlite_remediation_repository import SqliteRemediationRepository
 from app.repositories.sqlite_security_event_repository import SQLiteSecurityEventRepository
 from app.repositories.sqlite_session_repository import SQLiteSessionRepository
 from app.repositories.sqlite_snapshot_repository import SqliteSnapshotRepository
@@ -28,8 +31,11 @@ from app.services.ai_explain_service import AiExplainService
 from app.services.audit_run_service import AuditRunService
 from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
+from app.services.baseline_service import BaselineService
 from app.services.device_service import DeviceService
 from app.services.diff_service import DiffService
+from app.services.drift_service import DriftService
+from app.services.remediation_service import RemediationService
 from app.services.security_event_service import SecurityEventService
 from app.services.snapshot_service import SnapshotService
 from app.services.user_service import UserService
@@ -95,17 +101,31 @@ def create_app(
     hmac_key = app_settings.snapshot_hmac_key or "netsentry-snapshot-default-key"
     redactor = ConfigRedactor(hmac_key=hmac_key)
 
+    baseline_repo = SqliteBaselineRepository(app_settings.db_path)
+    drift_repo = SqliteDriftRepository(app_settings.db_path)
+
     snapshot_service = SnapshotService(
         snapshot_repository=snapshot_repo,
         file_store=file_store,
         redactor=redactor,
         normalizer=ConfigNormalizer,
+        baseline_repository=baseline_repo,
         enabled=app_settings.snapshot_enabled,
         keep=app_settings.snapshot_keep,
         content_api_enabled=app_settings.snapshot_content_api,
     )
 
     diff_service = DiffService()
+    drift_service = DriftService(max_blocks=app_settings.drift_max_blocks)
+
+    baseline_service = BaselineService(
+        baseline_repository=baseline_repo,
+        drift_repository=drift_repo,
+        snapshot_service=snapshot_service,
+        drift_service=drift_service,
+        audit_run_repository=audit_repo,
+        enabled=app_settings.baseline_enabled,
+    )
 
     audit_run_service = AuditRunService(
         device_repository=device_repo,
@@ -113,6 +133,7 @@ def create_app(
         audit_service=audit_core_service,
         default_credentials=lambda: app_settings.default_credentials,
         snapshot_service=snapshot_service,
+        baseline_service=baseline_service,
     )
 
     # AI infrastructure
@@ -160,6 +181,21 @@ def create_app(
         password_hasher=password_hasher,
     )
 
+    remediation_repo = SqliteRemediationRepository(app_settings.db_path)
+    remediation_service = RemediationService(
+        remediation_repo=remediation_repo,
+        device_repo=device_repo,
+        audit_repo=audit_repo,
+        auth_service=auth_service,
+        security_event_repo=event_repo,
+        enabled=app_settings.remediation_enabled,
+        proposal_ttl_minutes=app_settings.remediation_proposal_ttl_minutes,
+        approval_ttl_minutes=app_settings.remediation_approval_ttl_minutes,
+        max_audit_age_minutes=app_settings.remediation_max_audit_age_minutes,
+        require_distinct_approver=app_settings.remediation_require_distinct_approver,
+    )
+    remediation_service.scan_and_expire_stale_plans()
+
     # FastAPI instance
     docs_url = "/docs" if app_settings.enable_docs else None
     redoc_url = "/redoc" if app_settings.enable_docs else None
@@ -180,9 +216,12 @@ def create_app(
     app.state.audit_run_service = audit_run_service
     app.state.snapshot_service = snapshot_service
     app.state.diff_service = diff_service
+    app.state.drift_service = drift_service
+    app.state.baseline_service = baseline_service
     app.state.ai_explain_service = ai_explain_service
     app.state.user_service = user_service
     app.state.auth_service = auth_service
+    app.state.remediation_service = remediation_service
     app.state.security_event_service = event_service
     app.state.session_repository = session_repo
 
@@ -212,9 +251,11 @@ def create_app(
     api_v1_router.include_router(audits.router)
     api_v1_router.include_router(snapshots.router)
     api_v1_router.include_router(compare.router)
+    api_v1_router.include_router(baselines.router)
     api_v1_router.include_router(ai.router)
     api_v1_router.include_router(users.router)
     api_v1_router.include_router(security_events.router)
+    api_v1_router.include_router(remediation.router)
     app.include_router(api_v1_router)
 
     # Mount SPA static files if enabled

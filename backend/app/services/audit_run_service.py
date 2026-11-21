@@ -20,6 +20,7 @@ from app.domain.interfaces.device_repository import DeviceRepository
 from app.services.audit_service import AuditService
 
 if TYPE_CHECKING:
+    from app.services.baseline_service import BaselineService
     from app.services.snapshot_service import SnapshotService
 
 logger = logging.getLogger(__name__)
@@ -35,12 +36,14 @@ class AuditRunService:
         audit_service: AuditService,
         *,
         snapshot_service: SnapshotService | None = None,
+        baseline_service: BaselineService | None = None,
         default_credentials: Callable[[], Credentials | None] | None = None,
     ) -> None:
         self.device_repository = device_repository
         self.audit_repository = audit_repository
         self.audit_service = audit_service
         self.snapshot_service = snapshot_service
+        self.baseline_service = baseline_service
         self.default_credentials = default_credentials
 
         self._global_lock = threading.Lock()
@@ -105,6 +108,17 @@ class AuditRunService:
                         run_id,
                         type(snap_exc).__name__,
                     )
+
+                if self.baseline_service is not None:
+                    try:
+                        self.baseline_service.compute_and_store_summary(device_id, run_id)
+                    except Exception as drift_exc:
+                        logger.warning(
+                            "Drift computation failed for device %s run %s: %s",
+                            device_id,
+                            run_id,
+                            type(drift_exc).__name__,
+                        )
 
             detail = self.audit_repository.get_run(run_id)
             if detail is None:

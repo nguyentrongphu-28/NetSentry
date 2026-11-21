@@ -8,6 +8,10 @@ import {
   ConfigDiffOut,
   SnapshotDetailOut,
   SnapshotOut,
+  BaselineOut,
+  ApproveBaselineIn,
+  DriftReportOut,
+  DriftHistoryItemOut,
 } from "../types/api";
 import { apiFetch } from "./apiClient";
 
@@ -96,4 +100,59 @@ export async function generateAuditExplanation(runId: number, force = false): Pr
 
 export async function getAuditExplanation(runId: number): Promise<AiExplanationOut> {
   return apiFetch<AiExplanationOut>(`/api/v1/audits/${runId}/explanation`);
+}
+
+// ---------------------------------------------------------------------------
+// Baseline & Drift APIs
+// ---------------------------------------------------------------------------
+
+export async function getActiveBaseline(deviceId: string): Promise<BaselineOut> {
+  return apiFetch<BaselineOut>(`/api/v1/devices/${encodeURIComponent(deviceId)}/baseline`);
+}
+
+export async function listBaselinesHistory(deviceId: string, limit = 50): Promise<BaselineOut[]> {
+  return apiFetch<BaselineOut[]>(
+    `/api/v1/devices/${encodeURIComponent(deviceId)}/baselines?limit=${limit}`
+  );
+}
+
+export async function approveBaseline(
+  deviceId: string,
+  payload: ApproveBaselineIn
+): Promise<BaselineOut> {
+  return apiFetch<BaselineOut>(`/api/v1/devices/${encodeURIComponent(deviceId)}/baseline`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function retireActiveBaseline(deviceId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/devices/${encodeURIComponent(deviceId)}/baseline`, {
+    method: "DELETE",
+  });
+}
+
+export async function getDeviceDrift(
+  deviceId: string,
+  runId?: number | null,
+  detail = false
+): Promise<DriftReportOut> {
+  const params = new URLSearchParams();
+  if (runId !== undefined && runId !== null) params.set("run_id", String(runId));
+  if (detail) params.set("detail", "1");
+  const queryStr = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<DriftReportOut>(
+    `/api/v1/devices/${encodeURIComponent(deviceId)}/drift${queryStr}`
+  );
+}
+
+export const getDrift = getDeviceDrift;
+
+export async function getDriftHistory(
+  deviceId: string,
+  limit = 30
+): Promise<DriftHistoryItemOut[]> {
+  return apiFetch<DriftHistoryItemOut[]>(
+    `/api/v1/devices/${encodeURIComponent(deviceId)}/drift/history?limit=${limit}`
+  );
 }
