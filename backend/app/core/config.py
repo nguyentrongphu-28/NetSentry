@@ -64,6 +64,15 @@ class Settings:
     remediation_approval_ttl_minutes: int = 60
     remediation_max_audit_age_minutes: int = 60
     remediation_require_distinct_approver: bool = True
+    # Remediation Execution configuration (Remediation D)
+    remediation_execute_mode: str = "off"
+    ssh_write_username: str | None = field(default=None, repr=False)
+    ssh_write_password: str | None = field(default=None, repr=False)
+    ssh_write_enable_secret: str | None = field(default=None, repr=False)
+    remediation_allow_shared_account: bool = False
+    remediation_step_timeout_seconds: int = 60
+    remediation_execution_timeout_minutes: int = 15
+    remediation_apply_rate_limit: str = "5/3600"
 
     def __post_init__(self) -> None:
         if self.public_mode:
@@ -308,6 +317,63 @@ class Settings:
         if public_mode:
             remediation_require_distinct_approver = True
 
+        # Remediation Execution configuration (Remediation D)
+        remediation_execute_mode = env.get("NETSENTRY_REMEDIATION_EXECUTE_MODE", "off").strip().lower()
+        if remediation_execute_mode not in ("off", "dry_run", "live"):
+            raise ConfigError(
+                f"Invalid NETSENTRY_REMEDIATION_EXECUTE_MODE '{remediation_execute_mode}'. "
+                "Must be 'off', 'dry_run', or 'live'."
+            )
+
+        if public_mode and remediation_execute_mode != "off":
+            raise RuntimeError(
+                "NETSENTRY_PUBLIC_MODE=1 combined with NETSENTRY_REMEDIATION_EXECUTE_MODE != 'off' is strictly forbidden."
+            )
+
+        if remediation_execute_mode != "off" and not remediation_enabled:
+            raise ConfigError(
+                "NETSENTRY_REMEDIATION_EXECUTE_MODE requires NETSENTRY_REMEDIATION_ENABLED=1"
+            )
+
+        ssh_write_username = env.get("NETSENTRY_SSH_WRITE_USERNAME", "").strip() or None
+        ssh_write_password = env.get("NETSENTRY_SSH_WRITE_PASSWORD", "").strip() or None
+        ssh_write_enable_secret = env.get("NETSENTRY_SSH_WRITE_ENABLE_SECRET", "").strip() or None
+
+        allow_shared_account_raw = env.get("NETSENTRY_REMEDIATION_ALLOW_SHARED_ACCOUNT", "0").strip().lower()
+        remediation_allow_shared_account = allow_shared_account_raw in ("1", "true", "yes")
+
+        if remediation_execute_mode != "off":
+            if not (ssh_user and ssh_pw):
+                raise ConfigError(
+                    "Remediation execution requires read SSH credentials (NETSENTRY_SSH_USERNAME and NETSENTRY_SSH_PASSWORD)"
+                )
+
+        if remediation_execute_mode == "live":
+            if not (ssh_write_username and ssh_write_password):
+                raise ConfigError(
+                    "NETSENTRY_REMEDIATION_EXECUTE_MODE=live requires NETSENTRY_SSH_WRITE_USERNAME and NETSENTRY_SSH_WRITE_PASSWORD"
+                )
+            if ssh_write_username == ssh_user and not remediation_allow_shared_account:
+                raise ConfigError(
+                    "NETSENTRY_SSH_WRITE_USERNAME cannot match NETSENTRY_SSH_USERNAME unless NETSENTRY_REMEDIATION_ALLOW_SHARED_ACCOUNT=1"
+                )
+
+        try:
+            remediation_step_timeout_seconds = int(env.get("NETSENTRY_REMEDIATION_STEP_TIMEOUT_SECONDS", "60"))
+            if not (10 <= remediation_step_timeout_seconds <= 300):
+                raise ConfigError("NETSENTRY_REMEDIATION_STEP_TIMEOUT_SECONDS must be between 10 and 300")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_REMEDIATION_STEP_TIMEOUT_SECONDS: {exc}") from exc
+
+        try:
+            remediation_execution_timeout_minutes = int(env.get("NETSENTRY_REMEDIATION_EXECUTION_TIMEOUT_MINUTES", "15"))
+            if not (5 <= remediation_execution_timeout_minutes <= 120):
+                raise ConfigError("NETSENTRY_REMEDIATION_EXECUTION_TIMEOUT_MINUTES must be between 5 and 120")
+        except ValueError as exc:
+            raise ConfigError(f"Invalid NETSENTRY_REMEDIATION_EXECUTION_TIMEOUT_MINUTES: {exc}") from exc
+
+        remediation_apply_rate_limit = env.get("NETSENTRY_REMEDIATION_APPLY_RATE_LIMIT", "5/3600").strip()
+
         return cls(
             db_path=db_path,
             api_key=api_key,
@@ -348,4 +414,12 @@ class Settings:
             remediation_approval_ttl_minutes=remediation_approval_ttl_minutes,
             remediation_max_audit_age_minutes=remediation_max_audit_age_minutes,
             remediation_require_distinct_approver=remediation_require_distinct_approver,
+            remediation_execute_mode=remediation_execute_mode,
+            ssh_write_username=ssh_write_username,
+            ssh_write_password=ssh_write_password,
+            ssh_write_enable_secret=ssh_write_enable_secret,
+            remediation_allow_shared_account=remediation_allow_shared_account,
+            remediation_step_timeout_seconds=remediation_step_timeout_seconds,
+            remediation_execution_timeout_minutes=remediation_execution_timeout_minutes,
+            remediation_apply_rate_limit=remediation_apply_rate_limit,
         )

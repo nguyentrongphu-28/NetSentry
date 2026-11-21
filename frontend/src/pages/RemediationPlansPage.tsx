@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useDevices } from "../hooks/useDevices";
-import { listDeviceRemediationPlans } from "../services/remediationApi";
+import { listAttentionPlans, listDeviceRemediationPlans } from "../services/remediationApi";
+import { ManualAttentionList } from "../components/remediation/ManualAttentionList";
 import { PlanStatusBadge } from "../components/remediation/PlanStatusBadge";
 import { Badge } from "../components/ui/Badge";
 import { Spinner } from "../components/ui/Spinner";
@@ -35,10 +36,24 @@ export function RemediationPlansPage(): React.JSX.Element {
     enabled: !!effectiveDeviceId,
   });
 
+  const {
+    data: attentionList = [],
+    refetch: refetchAttention,
+  } = useQuery({
+    queryKey: ["remediation-attention-plans"],
+    queryFn: () => listAttentionPlans(),
+  });
+
   const isLoading = isDevicesLoading || (isPlansLoading && !!effectiveDeviceId);
 
   return (
     <div className="space-y-6">
+      {/* Manual Attention Alert if any */}
+      <ManualAttentionList
+        attentionList={attentionList}
+        onRefresh={refetchAttention}
+      />
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

@@ -22,11 +22,14 @@ from app.domain.errors import (
     BaselineFailuresNotConfirmedError,
     BaselineNotFoundError,
     BodyCredentialsDisabledError,
+    ConfirmationMismatchError,
     ContentDisabledError,
     CredentialsRequiredError,
+    DeviceBusyError,
     DeviceNotFoundError,
     DiffInputError,
     DuplicateDeviceError,
+    ExecutionDisabledError,
     ExplanationNotFoundError,
     FindingNotFailingError,
     ForbiddenError,
@@ -41,6 +44,7 @@ from app.domain.errors import (
     OriginNotAllowedError,
     PasswordChangeRequiredError,
     PlanExpiredError,
+    PlanHashMismatchError,
     PlanNotFoundError,
     PlanStaleError,
     RateLimitedError,
@@ -545,6 +549,35 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=403,
             content={"error": {"code": exc.code, "message": str(exc)}},
         )
+
+    @app.exception_handler(ExecutionDisabledError)
+    def execution_disabled_handler(request: Request, exc: ExecutionDisabledError) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(DeviceBusyError)
+    def device_busy_handler(request: Request, exc: DeviceBusyError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(PlanHashMismatchError)
+    def plan_hash_mismatch_handler(request: Request, exc: PlanHashMismatchError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
+    @app.exception_handler(ConfirmationMismatchError)
+    def confirmation_mismatch_handler(request: Request, exc: ConfirmationMismatchError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"error": {"code": exc.code, "message": str(exc)}},
+        )
+
 
     @app.exception_handler(CredentialsRequiredError)
     def credentials_required_handler(

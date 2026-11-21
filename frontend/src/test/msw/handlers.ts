@@ -343,4 +343,19 @@ export const handlers = [
   http.get("/api/v1/devices/:deviceId/drift/history", () => {
     return HttpResponse.json([]);
   }),
+
+  // Remediation Execution defaults
+  http.get("/api/v1/remediation/execution-status", () => {
+    return HttpResponse.json({
+      mode: "off",
+      write_username_configured: false,
+      active_executions_count: 0,
+    });
+  }),
+  http.get("/api/v1/remediation-plans/:planId/executions", () => {
+    return HttpResponse.json([]);
+  }),
+  http.get("/api/v1/remediation/attention", () => {
+    return HttpResponse.json([]);
+  }),
 ];

@@ -330,4 +330,50 @@ class UserSessionRequiredError(NetSentryError):
     code: str = "USER_SESSION_REQUIRED"
 
 
+# ---------------------------------------------------------------------------
+# Remediation Execution (Remediation D) errors
+# ---------------------------------------------------------------------------
+
+class ExecutionDisabledError(NetSentryError):
+    """Raised when remediation execution is disabled on the server."""
+
+    code: str = "EXECUTION_DISABLED"
+
+
+class DeviceBusyError(NetSentryError):
+    """Raised when the target device is currently busy with another execution."""
+
+    code: str = "DEVICE_BUSY"
+
+
+class PlanHashMismatchError(NetSentryError):
+    """Raised when the plan hash does not match current template or approved hash."""
+
+    code: str = "PLAN_HASH_MISMATCH"
+
+
+class ConfirmationMismatchError(NetSentryError):
+    """Raised when the confirmed device name does not match the plan device."""
+
+    code: str = "CONFIRMATION_MISMATCH"
+
+
+class WriteAuthFailedError(NetSentryError):
+    """Internal error when write channel authentication fails."""
+
+    code: str = "WRITE_AUTH_FAILED"
+
+
+class WriteRejectedError(NetSentryError):
+    """Internal error when the device rejects a configuration command."""
+
+    code: str = "WRITE_REJECTED"
+
+
+class WriteConnectionError(NetSentryError):
+    """Internal error when connecting to or communicating with device write channel fails."""
+
+    code: str = "WRITE_CONNECTION_FAILED"
+
+
 

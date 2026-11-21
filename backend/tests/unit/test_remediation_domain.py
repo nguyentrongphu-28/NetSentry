@@ -10,7 +10,9 @@ from app.domain.errors import InvalidTransitionError, NotEligibleError
 from app.remediation.command_policy import (
     COMMAND_ALLOWLIST,
     FORBIDDEN_TOKENS,
+    ROLLBACK_COMMAND_ALLOWLIST,
     validate_commands,
+    validate_rollback_commands,
 )
 from app.remediation.plan_hash import compute_plan_hash
 from app.remediation.state_machine import is_valid_transition, validate_transition
@@ -92,6 +94,40 @@ class TestCommandPolicyAndTemplates:
             with pytest.raises(ValueError):
                 validate_commands((inj,))
 
+    def test_validate_rollback_commands_accepts_valid(self) -> None:
+        cmds = validate_rollback_commands(("ip http server",))
+        assert cmds == ("ip http server",)
+
+    def test_validate_rollback_commands_rejects_empty_or_invalid(self) -> None:
+        with pytest.raises(ValueError, match="cannot be empty"):
+            validate_rollback_commands(())
+        with pytest.raises(ValueError, match="not in ROLLBACK_COMMAND_ALLOWLIST"):
+            validate_rollback_commands(("no ip http server",))  # remediation command cannot be used as rollback
+        with pytest.raises(ValueError, match="not in ROLLBACK_COMMAND_ALLOWLIST"):
+            validate_rollback_commands(("reload",))
+        with pytest.raises(ValueError):
+            validate_rollback_commands(("ip http server\nreload",))
+
+    def test_remediation_commands_cannot_be_rollback_and_vice_versa(self) -> None:
+        # Rollback command is rejected by validate_commands
+        with pytest.raises(ValueError, match="not in COMMAND_ALLOWLIST"):
+            validate_commands(("ip http server",))
+        # Remediation command is rejected by validate_rollback_commands
+        with pytest.raises(ValueError, match="not in ROLLBACK_COMMAND_ALLOWLIST"):
+            validate_rollback_commands(("no ip http server",))
+
+    def test_template_registry_v2_and_rollback_properties(self) -> None:
+        tmpl_008 = get_template("NET-008")
+        assert tmpl_008.version == 2
+        assert tmpl_008.reversible is True
+        assert tmpl_008.rollback_commands == ("ip http server",)
+
+        tmpl_004 = get_template("NET-004")
+        assert tmpl_004.version == 2
+        assert tmpl_004.reversible is False
+        assert tmpl_004.rollback_commands == ()
+
+
 
 class TestCommandInjectionProtection:
     """Spec 9.2: Command injection resistance."""
@@ -148,20 +184,22 @@ class TestPlanHash:
         base_kwargs = {
             "device_id": "Router-Core-01",
             "rule_id": "NET-008",
-            "template_id": "NET-008-v1",
-            "template_version": 1,
+            "template_id": "NET-008-v2",
+            "template_version": 2,
             "commands": ("no ip http server",),
             "persist_after_verify": False,
+            "rollback_commands": ("ip http server",),
         }
         base_hash = compute_plan_hash(**base_kwargs)
 
         # Alter each field
         assert compute_plan_hash(**{**base_kwargs, "device_id": "Router-Core-02"}) != base_hash
         assert compute_plan_hash(**{**base_kwargs, "rule_id": "NET-004"}) != base_hash
-        assert compute_plan_hash(**{**base_kwargs, "template_id": "NET-008-v2"}) != base_hash
-        assert compute_plan_hash(**{**base_kwargs, "template_version": 2}) != base_hash
+        assert compute_plan_hash(**{**base_kwargs, "template_id": "NET-008-v1"}) != base_hash
+        assert compute_plan_hash(**{**base_kwargs, "template_version": 1}) != base_hash
         assert compute_plan_hash(**{**base_kwargs, "commands": ("service password-encryption",)}) != base_hash
         assert compute_plan_hash(**{**base_kwargs, "persist_after_verify": True}) != base_hash
+        assert compute_plan_hash(**{**base_kwargs, "rollback_commands": ()}) != base_hash
 
 
 class TestStateMachine:
@@ -174,19 +212,45 @@ class TestStateMachine:
         assert is_valid_transition(PlanStatus.PROPOSED, PlanStatus.CANCELLED)
         assert is_valid_transition(PlanStatus.PROPOSED, PlanStatus.EXPIRED)
 
-        # APPROVED -> CANCELLED / EXPIRED
+        # APPROVED -> CANCELLED / EXPIRED / APPLYING
         assert is_valid_transition(PlanStatus.APPROVED, PlanStatus.CANCELLED)
         assert is_valid_transition(PlanStatus.APPROVED, PlanStatus.EXPIRED)
+        assert is_valid_transition(PlanStatus.APPROVED, PlanStatus.APPLYING)
+
+        # APPLYING -> APPLIED / FAILED
+        assert is_valid_transition(PlanStatus.APPLYING, PlanStatus.APPLIED)
+        assert is_valid_transition(PlanStatus.APPLYING, PlanStatus.FAILED)
+
+        # APPLIED -> VERIFIED / VERIFY_FAILED / ROLLED_BACK / FAILED
+        assert is_valid_transition(PlanStatus.APPLIED, PlanStatus.VERIFIED)
+        assert is_valid_transition(PlanStatus.APPLIED, PlanStatus.VERIFY_FAILED)
+        assert is_valid_transition(PlanStatus.APPLIED, PlanStatus.ROLLED_BACK)
+        assert is_valid_transition(PlanStatus.APPLIED, PlanStatus.FAILED)
 
     def test_invalid_transitions(self) -> None:
-        # Final states cannot transition
-        for final in (PlanStatus.REJECTED, PlanStatus.CANCELLED, PlanStatus.EXPIRED):
+        terminal_statuses = (
+            PlanStatus.REJECTED,
+            PlanStatus.CANCELLED,
+            PlanStatus.EXPIRED,
+            PlanStatus.VERIFIED,
+            PlanStatus.VERIFY_FAILED,
+            PlanStatus.ROLLED_BACK,
+            PlanStatus.FAILED,
+        )
+        # Final states cannot transition to any state
+        for final in terminal_statuses:
             for target in PlanStatus:
                 assert not is_valid_transition(final, target)
                 with pytest.raises(InvalidTransitionError):
                     validate_transition(final, target)
 
-        # APPROVED cannot transition to APPROVED or REJECTED
-        assert not is_valid_transition(PlanStatus.APPROVED, PlanStatus.APPROVED)
-        assert not is_valid_transition(PlanStatus.APPROVED, PlanStatus.REJECTED)
-        assert not is_valid_transition(PlanStatus.APPROVED, PlanStatus.PROPOSED)
+        # APPROVED cannot jump to VERIFIED directly
+        assert not is_valid_transition(PlanStatus.APPROVED, PlanStatus.VERIFIED)
+        with pytest.raises(InvalidTransitionError):
+            validate_transition(PlanStatus.APPROVED, PlanStatus.VERIFIED)
+
+        # APPLYING cannot jump to VERIFIED without APPLIED
+        assert not is_valid_transition(PlanStatus.APPLYING, PlanStatus.VERIFIED)
+        with pytest.raises(InvalidTransitionError):
+            validate_transition(PlanStatus.APPLYING, PlanStatus.VERIFIED)
+

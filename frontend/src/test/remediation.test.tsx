@@ -9,12 +9,18 @@ import { FindingRow } from "../components/audits/FindingRow";
 import { RemediationPreviewDialog } from "../components/remediation/RemediationPreviewDialog";
 import { ApproveDialog } from "../components/remediation/ApproveDialog";
 import { RejectDialog } from "../components/remediation/RejectDialog";
+import { ApplyDialog } from "../components/remediation/ApplyDialog";
+import { ExecutionProgress } from "../components/remediation/ExecutionProgress";
+import { ExecutionResultBanner } from "../components/remediation/ExecutionResultBanner";
+import { ManualAttentionList } from "../components/remediation/ManualAttentionList";
 import { PlanTimeline } from "../components/remediation/PlanTimeline";
 import { RemediationPlanDetailPage } from "../pages/RemediationPlanDetailPage";
 import {
+  AttentionPlanOut,
   FindingOut,
   ManualGuidanceOut,
   PlanEventOut,
+  RemediationExecutionOut,
   RemediationPlanDetailOut,
   RemediationTemplateOut,
 } from "../types/api";
@@ -439,6 +445,283 @@ describe("Remediation Frontend Components & Flow (Spec Section 9.11)", () => {
         expect(
           screen.getByText(STRINGS.remediation.approve.approvedBanner)
         ).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Remediation Execution Flow (ApplyDialog, Progress, Results & Attention)", () => {
+    const mockPlanForApply: RemediationPlanDetailOut = {
+      id: 55,
+      device_id: "Router-Core-01",
+      run_id: 101,
+      rule_id: "NET-008",
+      status: "APPROVED",
+      risk_level: "LOW",
+      persist_after_verify: false,
+      proposed_by: "operator1",
+      proposed_at: "2026-11-21T10:00:00Z",
+      decided_by: "admin1",
+      decided_at: "2026-11-21T11:00:00Z",
+      expires_at: "2026-11-21T12:00:00Z",
+      plan_hash: "hash_approved_55",
+      commands: ["no ip http server"],
+      rollback_commands: ["ip http server"],
+      impact: "Disables HTTP",
+      risks: "Loss of HTTP management",
+      expected_verification: { rule_id: "NET-008", expected_status: "PASS" },
+      reversible: true,
+      rollback_note: "Run ip http server",
+      approved_hash_matches: true,
+      timeline: [],
+    };
+
+    it("ApplyDialog enforces device confirmation match, password, and checkbox", async () => {
+      const onSuccess = vi.fn();
+      const onClose = vi.fn();
+      let capturedBody: unknown = null;
+
+      server.use(
+        http.post("/api/v1/remediation-plans/55/apply", async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json(
+            { plan_id: 55, execution_id: 99, mode: "live" },
+            { status: 202 }
+          );
+        })
+      );
+
+      const user = userEvent.setup();
+      await renderWithProviders(
+        <ApplyDialog
+          isOpen={true}
+          onClose={onClose}
+          plan={mockPlanForApply}
+          executionMode="live"
+          onSuccess={onSuccess}
+        />,
+        { renderAs: "admin" }
+      );
+
+      const submitBtn = screen.getByRole("button", {
+        name: new RegExp(STRINGS.remediation.execute.btnSubmitApply, "i"),
+      });
+      expect(submitBtn).toBeDisabled();
+
+      // Enter wrong device ID
+      const deviceInput = screen.getByLabelText(/xác nhận tên thiết bị/i);
+      await user.type(deviceInput, "Wrong-Device");
+      expect(submitBtn).toBeDisabled();
+      expect(
+        screen.getByText(STRINGS.remediation.execute.confirmDeviceMismatch)
+      ).toBeInTheDocument();
+
+      // Fix device ID
+      await user.clear(deviceInput);
+      await user.type(deviceInput, "Router-Core-01");
+      expect(submitBtn).toBeDisabled();
+
+      // Enter password
+      const passInput = screen.getByLabelText(/mật khẩu quản trị/i);
+      await user.type(passInput, "SecretAdmin123!");
+      expect(submitBtn).toBeDisabled();
+
+      // Check confirm checkbox
+      const checkbox = screen.getByRole("checkbox");
+      await user.click(checkbox);
+      expect(submitBtn).toBeEnabled();
+
+      // Submit
+      await user.click(submitBtn);
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalledWith(99, "live");
+      });
+
+      expect(capturedBody).toEqual({
+        confirm_device_id: "Router-Core-01",
+        password: "SecretAdmin123!",
+      });
+    });
+
+    it("ExecutionProgress renders steps and statuses correctly", async () => {
+      const mockExecution: RemediationExecutionOut = {
+        id: 99,
+        plan_id: 55,
+        mode: "live",
+        started_at: "2026-11-21T11:05:00Z",
+        finished_at: "2026-11-21T11:06:00Z",
+        started_by: "admin1",
+        result: "VERIFIED",
+        failure_code: null,
+        changes_sent: true,
+        pre_run_id: 101,
+        post_run_id: 102,
+        rollback_run_id: null,
+        persist_status: "NOT_REQUESTED",
+        needs_manual_attention: false,
+        steps: [
+          {
+            step: "pre_check_audit",
+            status: "SUCCESS",
+            at: "2026-11-21T11:05:05Z",
+            detail: "Pre-check audit #101 passed",
+          },
+          {
+            step: "write_config",
+            status: "SUCCESS",
+            at: "2026-11-21T11:05:20Z",
+            detail: "1 command sent",
+          },
+          {
+            step: "post_audit",
+            status: "SUCCESS",
+            at: "2026-11-21T11:05:55Z",
+            detail: "Audit #102: PASS",
+          },
+        ],
+      };
+
+      await renderWithProviders(
+        <ExecutionProgress execution={mockExecution} />,
+        { renderAs: "admin" }
+      );
+
+      expect(screen.getByText(/tiến trình thực thi/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(STRINGS.remediation.progress.stepPrecheck)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(STRINGS.remediation.progress.stepWrite)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(STRINGS.remediation.progress.stepPostAudit)
+      ).toBeInTheDocument();
+      expect(screen.getByText("Pre-check audit #101 passed")).toBeInTheDocument();
+    });
+
+    it("ExecutionResultBanner renders VERIFIED with compare link and critical attention banner", async () => {
+      const verifiedExec: RemediationExecutionOut = {
+        id: 99,
+        plan_id: 55,
+        mode: "live",
+        started_at: "2026-11-21T11:05:00Z",
+        finished_at: "2026-11-21T11:06:00Z",
+        started_by: "admin1",
+        result: "VERIFIED",
+        failure_code: null,
+        changes_sent: true,
+        pre_run_id: 101,
+        post_run_id: 102,
+        rollback_run_id: null,
+        persist_status: "NOT_REQUESTED",
+        needs_manual_attention: false,
+        steps: [],
+      };
+
+      const { unmount } = await renderWithProviders(
+        <ExecutionResultBanner execution={verifiedExec} />,
+        { renderAs: "admin" }
+      );
+
+      expect(
+        screen.getByText(STRINGS.remediation.result.verified)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(STRINGS.remediation.result.compareWithPostAudit)
+      ).toBeInTheDocument();
+
+      unmount();
+
+      // Now test critical attention alert
+      const attentionExec: RemediationExecutionOut = {
+        ...verifiedExec,
+        result: "FAILED",
+        failure_code: "POST_AUDIT_STILL_FAILING",
+        needs_manual_attention: true,
+      };
+
+      await renderWithProviders(
+        <ExecutionResultBanner execution={attentionExec} />,
+        { renderAs: "admin" }
+      );
+
+      expect(
+        screen.getByText(STRINGS.remediation.result.needsAttentionTitle)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/POST_AUDIT_STILL_FAILING/)
+      ).toBeInTheDocument();
+    });
+
+    it("ManualAttentionList displays attention items and allows Admin acknowledge", async () => {
+      const mockAttention: AttentionPlanOut[] = [
+        {
+          execution_id: 99,
+          plan_id: 55,
+          device_id: "Router-Core-01",
+          rule_id: "NET-008",
+          started_at: "2026-11-21T11:05:00Z",
+          finished_at: "2026-11-21T11:06:00Z",
+          failure_code: "WRITE_FAILED",
+          changes_sent: true,
+          acknowledged_at: null,
+          acknowledged_by: null,
+          acknowledgement_note: null,
+        },
+      ];
+
+      const onRefresh = vi.fn();
+      let capturedAckBody: unknown = null;
+
+      server.use(
+        http.post(
+          "/api/v1/remediation/executions/99/acknowledge",
+          async ({ request }) => {
+            capturedAckBody = await request.json();
+            return new HttpResponse(null, { status: 204 });
+          }
+        )
+      );
+
+      const user = userEvent.setup();
+      await renderWithProviders(
+        <ManualAttentionList
+          attentionList={mockAttention}
+          onRefresh={onRefresh}
+        />,
+        { renderAs: "admin" }
+      );
+
+      expect(
+        screen.getByText(STRINGS.remediation.attention.title)
+      ).toBeInTheDocument();
+      expect(screen.getByText("Router-Core-01")).toBeInTheDocument();
+
+      const ackBtn = screen.getByRole("button", {
+        name: new RegExp(STRINGS.remediation.attention.ackBtn, "i"),
+      });
+      await user.click(ackBtn);
+
+      expect(
+        screen.getByText(STRINGS.remediation.attention.ackDialogTitle)
+      ).toBeInTheDocument();
+
+      const noteTextarea = screen.getByPlaceholderText(
+        STRINGS.remediation.attention.ackNotePlaceholder
+      );
+      await user.type(noteTextarea, "Checked device directly via console; rolled back safely.");
+
+      const confirmBtn = screen.getByRole("button", {
+        name: new RegExp(STRINGS.remediation.attention.ackConfirm, "i"),
+      });
+      await user.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(onRefresh).toHaveBeenCalled();
+      });
+
+      expect(capturedAckBody).toEqual({
+        note: "Checked device directly via console; rolled back safely.",
       });
     });
   });

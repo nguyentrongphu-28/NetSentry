@@ -15,13 +15,21 @@ VALID_TRANSITIONS: dict[PlanStatus, frozenset[PlanStatus]] = {
     PlanStatus.APPROVED: frozenset({
         PlanStatus.CANCELLED,
         PlanStatus.EXPIRED,
+        PlanStatus.APPLYING,
+    }),
+    PlanStatus.APPLYING: frozenset({
+        PlanStatus.APPLIED,
+        PlanStatus.FAILED,
+    }),
+    PlanStatus.APPLIED: frozenset({
+        PlanStatus.VERIFIED,
+        PlanStatus.VERIFY_FAILED,
+        PlanStatus.ROLLED_BACK,
+        PlanStatus.FAILED,
     }),
     PlanStatus.REJECTED: frozenset(),
     PlanStatus.CANCELLED: frozenset(),
     PlanStatus.EXPIRED: frozenset(),
-    # Reserved statuses for Remediation D have no inbound/outbound transitions in Phase C
-    PlanStatus.APPLYING: frozenset(),
-    PlanStatus.APPLIED: frozenset(),
     PlanStatus.VERIFIED: frozenset(),
     PlanStatus.VERIFY_FAILED: frozenset(),
     PlanStatus.FAILED: frozenset(),
@@ -32,6 +40,10 @@ FINAL_STATUSES: frozenset[PlanStatus] = frozenset({
     PlanStatus.REJECTED,
     PlanStatus.CANCELLED,
     PlanStatus.EXPIRED,
+    PlanStatus.VERIFIED,
+    PlanStatus.VERIFY_FAILED,
+    PlanStatus.ROLLED_BACK,
+    PlanStatus.FAILED,
 })
 
 

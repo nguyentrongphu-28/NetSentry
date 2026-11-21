@@ -8,7 +8,7 @@ from typing import Sequence
 from app.domain.entities.finding import Finding
 from app.domain.entities.remediation import RiskLevel
 from app.domain.errors import NotEligibleError
-from app.remediation.command_policy import validate_commands
+from app.remediation.command_policy import validate_commands, validate_rollback_commands
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +24,7 @@ class RemediationTemplate:
     expected_verification: tuple[str, str]  # e.g. ("NET-008", "PASS")
     reversible: bool
     rollback_note_vi: str
+    rollback_commands: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,10 +36,10 @@ class ManualGuidance:
     verification_hint: str
 
 
-# Fixed verified templates for NET-008 and NET-004
-TEMPLATE_NET_008_V1 = RemediationTemplate(
-    template_id="NET-008-v1",
-    version=1,
+# Fixed verified templates for NET-008 and NET-004 (v2)
+TEMPLATE_NET_008_V2 = RemediationTemplate(
+    template_id="NET-008-v2",
+    version=2,
     rule_id="NET-008",
     platforms=("cisco_ios",),
     risk_level=RiskLevel.LOW,
@@ -52,11 +53,12 @@ TEMPLATE_NET_008_V1 = RemediationTemplate(
     expected_verification=("NET-008", "PASS"),
     reversible=True,
     rollback_note_vi="Có thể hoàn tác bằng lệnh 'ip http server' trong chế độ cấu hình toàn cục.",
+    rollback_commands=("ip http server",),
 )
 
-TEMPLATE_NET_004_V1 = RemediationTemplate(
-    template_id="NET-004-v1",
-    version=1,
+TEMPLATE_NET_004_V2 = RemediationTemplate(
+    template_id="NET-004-v2",
+    version=2,
     rule_id="NET-004",
     platforms=("cisco_ios",),
     risk_level=RiskLevel.LOW,
@@ -69,11 +71,12 @@ TEMPLATE_NET_004_V1 = RemediationTemplate(
     expected_verification=("NET-004", "PASS"),
     reversible=False,
     rollback_note_vi="Không thể đảo ngược thực chất: tắt tính năng bằng 'no service password-encryption' không giải mã các mật khẩu đã lưu.",
+    rollback_commands=(),
 )
 
 _TEMPLATES_BY_RULE: dict[str, RemediationTemplate] = {
-    "NET-008": TEMPLATE_NET_008_V1,
-    "NET-004": TEMPLATE_NET_004_V1,
+    "NET-008": TEMPLATE_NET_008_V2,
+    "NET-004": TEMPLATE_NET_004_V2,
 }
 TEMPLATE_REGISTRY = _TEMPLATES_BY_RULE
 
@@ -150,3 +153,14 @@ def build_plan_commands(template: RemediationTemplate, finding: Finding) -> tupl
     validate_commands(template.commands)
     # Strictly return template commands as a fixed immutable tuple
     return tuple(template.commands)
+
+
+# Self-validation of registry templates
+for _tmpl in _TEMPLATES_BY_RULE.values():
+    validate_commands(_tmpl.commands)
+    if _tmpl.reversible:
+        validate_rollback_commands(_tmpl.rollback_commands)
+    else:
+        if _tmpl.rollback_commands:
+            raise ValueError(f"Template {_tmpl.template_id} is not reversible but has rollback_commands")
+

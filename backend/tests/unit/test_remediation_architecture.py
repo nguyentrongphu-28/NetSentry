@@ -243,3 +243,27 @@ def test_zero_device_touch_during_remediation_lifecycle(tmp_path: Path):
     assert counting_conn.connect_count == audit_connect_count, (
         f"Device was contacted {counting_conn.connect_count - audit_connect_count} times during remediation lifecycle!"
     )
+
+
+def test_writer_and_connector_separation():
+    """cisco_ios_writer and cisco_ios_connector must not import each other."""
+    backend_dir = Path(__file__).resolve().parent.parent.parent
+    writer_path = backend_dir / "app" / "connectors" / "cisco_ios_writer.py"
+    reader_path = backend_dir / "app" / "connectors" / "cisco_ios_connector.py"
+
+    writer_tree = ast.parse(writer_path.read_text(encoding="utf-8"))
+    for node in ast.walk(writer_tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names = [alias.name for alias in getattr(node, "names", [])]
+            mod = getattr(node, "module", "") or ""
+            assert "cisco_ios_connector" not in mod
+            assert not any("cisco_ios_connector" in n for n in names)
+
+    reader_tree = ast.parse(reader_path.read_text(encoding="utf-8"))
+    for node in ast.walk(reader_tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names = [alias.name for alias in getattr(node, "names", [])]
+            mod = getattr(node, "module", "") or ""
+            assert "cisco_ios_writer" not in mod
+            assert not any("cisco_ios_writer" in n for n in names)
+

@@ -178,9 +178,34 @@ CREATE TABLE IF NOT EXISTS remediation_events (
 );
 CREATE INDEX IF NOT EXISTS idx_plan_events
     ON remediation_events(plan_id, id);
+
+CREATE TABLE IF NOT EXISTS remediation_executions (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id                INTEGER NOT NULL REFERENCES remediation_plans(id) ON DELETE CASCADE,
+    mode                   TEXT NOT NULL CHECK (mode IN ('dry_run','live')),
+    started_at             TEXT NOT NULL,
+    finished_at            TEXT,
+    started_by             TEXT NOT NULL,
+    result                 TEXT NOT NULL CHECK (result IN
+          ('RUNNING','DRY_RUN_OK','VERIFIED','VERIFY_FAILED','ROLLED_BACK','FAILED')),
+    failure_code           TEXT,
+    changes_sent           INTEGER NOT NULL DEFAULT 0,
+    pre_run_id             INTEGER,
+    post_run_id            INTEGER,
+    rollback_run_id        INTEGER,
+    persist_status         TEXT NOT NULL DEFAULT 'NOT_REQUESTED'
+          CHECK (persist_status IN ('NOT_REQUESTED','SAVED','FAILED')),
+    needs_manual_attention INTEGER NOT NULL DEFAULT 0,
+    steps_json             TEXT NOT NULL DEFAULT '[]',
+    acknowledged_at        TEXT,
+    acknowledged_by        TEXT,
+    acknowledgement_note   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_exec_plan ON remediation_executions(plan_id, id);
+CREATE INDEX IF NOT EXISTS idx_exec_attention ON remediation_executions(needs_manual_attention) WHERE needs_manual_attention = 1;
 """
 
-_SCHEMA_VERSION = 5
+_SCHEMA_VERSION = 6
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:

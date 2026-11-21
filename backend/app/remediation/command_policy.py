@@ -9,6 +9,10 @@ COMMAND_ALLOWLIST: frozenset[str] = frozenset({
     "service password-encryption",
 })
 
+ROLLBACK_COMMAND_ALLOWLIST: frozenset[str] = frozenset({
+    "ip http server",
+})
+
 FORBIDDEN_TOKENS: tuple[str, ...] = (
     "reload",
     "erase",
@@ -64,3 +68,37 @@ def validate_commands(commands: Sequence[str]) -> None:
         for token in FORBIDDEN_TOKENS:
             if token in cmd_lower:
                 raise ValueError(f"Command contains forbidden token {token!r}: {cmd!r}")
+
+
+def validate_rollback_commands(commands: Sequence[str]) -> tuple[str, ...]:
+    """Validate that rollback commands conform strictly to authorized rollback allowlist.
+
+    Raises ValueError if commands list is empty, contains unauthorized commands,
+    contains forbidden characters/tokens, or has unexpected whitespace/formatting.
+    """
+    if not commands:
+        raise ValueError("Rollback commands cannot be empty.")
+
+    cleaned: list[str] = []
+    for cmd in commands:
+        if not isinstance(cmd, str):
+            raise ValueError(f"Rollback command must be a string, got {type(cmd)}")
+
+        if not cmd:
+            raise ValueError("Rollback command line cannot be empty.")
+
+        if len(cmd) > 120:
+            raise ValueError(f"Rollback command exceeds maximum length of 120 chars: {cmd!r}")
+
+        for forbidden in ("\n", "\r", ";", "|", "`"):
+            if forbidden in cmd:
+                raise ValueError(f"Rollback command contains forbidden character {forbidden!r}: {cmd!r}")
+
+        # Strict string equality against rollback allowlist
+        if cmd not in ROLLBACK_COMMAND_ALLOWLIST:
+            raise ValueError(f"Rollback command is not in ROLLBACK_COMMAND_ALLOWLIST: {cmd!r}")
+
+        cleaned.append(cmd)
+
+    return tuple(cleaned)
+

@@ -372,6 +372,7 @@ export interface RemediationPlanOut {
 
 export interface RemediationPlanDetailOut extends RemediationPlanOut {
   commands: string[];
+  rollback_commands?: string[];
   impact: string;
   risks: string;
   expected_verification: ExpectedVerificationOut;
@@ -387,6 +388,7 @@ export interface RemediationTemplateOut {
   version: string;
   title: string;
   commands: string[];
+  rollback_commands?: string[];
   risk_level: RemediationRiskLevel;
   impact: string;
   risks: string;
@@ -406,5 +408,78 @@ export interface ManualGuidanceOut {
 export interface TemplatesResponseOut {
   templates: RemediationTemplateOut[];
   manual_guidance: ManualGuidanceOut[];
+}
+
+export type ExecutionMode = "off" | "dry_run" | "live";
+
+export type ExecutionResult =
+  | "RUNNING"
+  | "DRY_RUN_OK"
+  | "VERIFIED"
+  | "ROLLED_BACK"
+  | "VERIFY_FAILED"
+  | "FAILED";
+
+export interface ExecutionStepOut {
+  step: string;
+  status: "STARTED" | "SUCCESS" | "FAILED" | "SKIPPED";
+  at: string;
+  detail?: string | null;
+}
+
+export interface RemediationExecutionOut {
+  id: number;
+  plan_id: number;
+  mode: ExecutionMode;
+  started_at: string;
+  finished_at: string | null;
+  started_by: string;
+  result: ExecutionResult;
+  failure_code: string | null;
+  changes_sent: boolean;
+  pre_run_id: number | null;
+  post_run_id: number | null;
+  rollback_run_id: number | null;
+  persist_status: string;
+  needs_manual_attention: boolean;
+  steps: ExecutionStepOut[];
+  acknowledged_at?: string | null;
+  acknowledged_by?: string | null;
+  acknowledgement_note?: string | null;
+}
+
+export interface ExecutionStatusOut {
+  mode: ExecutionMode;
+  write_username_configured: boolean;
+  active_executions_count: number;
+}
+
+export interface AttentionPlanOut {
+  execution_id: number;
+  plan_id: number;
+  device_id: string;
+  rule_id: string;
+  started_at: string;
+  finished_at: string | null;
+  failure_code: string | null;
+  changes_sent: boolean;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  acknowledgement_note: string | null;
+}
+
+export interface ApplyPlanIn {
+  confirm_device_id: string;
+  password?: string;
+}
+
+export interface ApplyResponseOut {
+  plan_id: number;
+  execution_id: number;
+  mode: string;
+}
+
+export interface AcknowledgeAttentionIn {
+  note?: string;
 }
 

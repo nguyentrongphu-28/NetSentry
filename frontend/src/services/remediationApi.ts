@@ -1,7 +1,13 @@
 import {
+  AcknowledgeAttentionIn,
+  ApplyPlanIn,
+  ApplyResponseOut,
   ApprovePlanIn,
+  AttentionPlanOut,
+  ExecutionStatusOut,
   ProposePlanIn,
   RejectPlanIn,
+  RemediationExecutionOut,
   RemediationPlanDetailOut,
   RemediationPlanOut,
   TemplatesResponseOut,
@@ -77,6 +83,57 @@ export async function cancelRemediationPlan(
     `/api/v1/remediation-plans/${planId}/cancel`,
     {
       method: "POST",
+    }
+  );
+}
+
+export async function getExecutionStatus(): Promise<ExecutionStatusOut> {
+  return apiFetch<ExecutionStatusOut>("/api/v1/remediation/execution-status");
+}
+
+export async function applyRemediationPlan(
+  planId: number,
+  payload: ApplyPlanIn
+): Promise<ApplyResponseOut> {
+  return apiFetch<ApplyResponseOut>(
+    `/api/v1/remediation-plans/${planId}/apply`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function listPlanExecutions(
+  planId: number
+): Promise<RemediationExecutionOut[]> {
+  return apiFetch<RemediationExecutionOut[]>(
+    `/api/v1/remediation-plans/${planId}/executions`
+  );
+}
+
+export async function getPlanExecution(
+  planId: number,
+  executionId: number
+): Promise<RemediationExecutionOut> {
+  return apiFetch<RemediationExecutionOut>(
+    `/api/v1/remediation-plans/${planId}/executions/${executionId}`
+  );
+}
+
+export async function listAttentionPlans(): Promise<AttentionPlanOut[]> {
+  return apiFetch<AttentionPlanOut[]>("/api/v1/remediation/attention");
+}
+
+export async function acknowledgeAttention(
+  executionId: number,
+  payload: AcknowledgeAttentionIn
+): Promise<void> {
+  await apiFetch<void>(
+    `/api/v1/remediation/executions/${executionId}/acknowledge`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
     }
   );
 }

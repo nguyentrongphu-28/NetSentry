@@ -4,24 +4,32 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Callable
+from typing import Any, Callable, TYPE_CHECKING
 
 from app.domain.entities.audit_result import AuditStatus
 from app.domain.entities.finding import FindingStatus
 from app.domain.entities.remediation import (
+    ExecutionMode,
+    ExecutionResult,
+    ExecutionStep,
     PlanEvent,
     PlanStatus,
+    RemediationExecution,
     RemediationPlan,
 )
 from app.domain.entities.security_event import SecurityEventType
 from app.domain.entities.user import Role
 from app.domain.errors import (
     ActivePlanExistsError,
+    ConfirmationMismatchError,
+    DeviceBusyError,
+    ExecutionDisabledError,
     FindingNotFailingError,
     ForbiddenError,
     InvalidTransitionError,
     NotEligibleError,
     PlanExpiredError,
+    PlanHashMismatchError,
     PlanNotFoundError,
     PlanStaleError,
     RemediationDisabledError,
@@ -32,10 +40,14 @@ from app.domain.interfaces.audit_repository import AuditRepository
 from app.domain.interfaces.device_repository import DeviceRepository
 from app.domain.interfaces.remediation_repository import RemediationRepository
 from app.domain.interfaces.security_event_repository import SecurityEventRepository
+from app.remediation.command_policy import validate_commands, validate_rollback_commands
 from app.remediation.plan_hash import compute_plan_hash
 from app.remediation.state_machine import validate_transition
 from app.remediation.templates import build_plan_commands, get_template
 from app.services.auth_service import AuthService
+
+if TYPE_CHECKING:
+    from app.services.remediation_executor import RemediationExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +69,8 @@ class RemediationService:
         max_audit_age_minutes: int = 60,
         require_distinct_approver: bool = True,
         clock: Callable[[], datetime] | None = None,
+        executor: RemediationExecutor | None = None,
+        execute_mode: str = "off",
     ) -> None:
         self._repo = remediation_repo
         self._device_repo = device_repo
@@ -69,6 +83,16 @@ class RemediationService:
         self._max_audit_age_minutes = max_audit_age_minutes
         self._require_distinct_approver = require_distinct_approver
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._executor = executor
+        self._execute_mode = execute_mode
+
+    @property
+    def executor(self) -> RemediationExecutor | None:
+        return self._executor
+
+    @property
+    def execute_mode(self) -> str:
+        return self._execute_mode
 
     @property
     def enabled(self) -> bool:
@@ -205,6 +229,7 @@ class RemediationService:
             template_version=tmpl.version,
             commands=commands,
             persist_after_verify=persist_after_verify,
+            rollback_commands=tmpl.rollback_commands,
         )
 
         expires_at = now + timedelta(minutes=self._proposal_ttl_minutes)
@@ -354,6 +379,7 @@ class RemediationService:
             template_version=tmpl.version,
             commands=plan.commands,
             persist_after_verify=plan.persist_after_verify,
+            rollback_commands=tmpl.rollback_commands,
         )
         if expected_hash != plan.plan_hash:
             self._repo.update_status(
@@ -510,3 +536,183 @@ class RemediationService:
         cancelled_plan = self._repo.get_plan(plan.id)
         assert cancelled_plan is not None
         return cancelled_plan
+
+    def apply(
+        self,
+        plan_id: int,
+        actor_username: str,
+        actor_user_id: int | None,
+        actor_role: Role,
+        confirm_device_id: str,
+        password: str,
+        client_ip: str | None = None,
+    ) -> RemediationExecution:
+        self._check_enabled()
+
+        if self._execute_mode == "off":
+            raise ExecutionDisabledError("Remediation execution is currently disabled.")
+
+        if actor_user_id is None:
+            raise UserSessionRequiredError("An interactive user session is required to apply remediation plans.")
+
+        if actor_role != Role.ADMIN:
+            raise ForbiddenError("Only administrators can apply remediation plans.")
+
+        plan = self.get_plan(plan_id)
+        now = self._now()
+
+        # Check confirmation match
+        if confirm_device_id != plan.device_id:
+            raise ConfirmationMismatchError(
+                f"Confirmation device mismatch: expected '{plan.device_id}', got '{confirm_device_id}'"
+            )
+
+        if plan.status == PlanStatus.EXPIRED or now >= plan.expires_at:
+            raise PlanExpiredError("Remediation plan has expired.")
+
+        if plan.status != PlanStatus.APPROVED:
+            raise InvalidTransitionError(
+                f"Only APPROVED plans can be applied (current status: {plan.status.value})"
+            )
+
+        # Anti-tampering check: verify plan hash matches both stored hash and active template
+        tmpl = get_template(plan.rule_id)
+        expected_hash = compute_plan_hash(
+            device_id=plan.device_id,
+            rule_id=plan.rule_id,
+            template_id=tmpl.template_id,
+            template_version=tmpl.version,
+            commands=plan.commands,
+            persist_after_verify=plan.persist_after_verify,
+            rollback_commands=tmpl.rollback_commands,
+        )
+        if expected_hash != plan.plan_hash or expected_hash != plan.approved_plan_hash:
+            raise PlanHashMismatchError("Plan hash mismatch: template has changed or plan was tampered with.")
+
+        validate_commands(plan.commands)
+        if tmpl.reversible:
+            validate_rollback_commands(tmpl.rollback_commands)
+
+        # Step-up authentication
+        self._auth_service.verify_password_for_user(actor_user_id, password, client_ip=client_ip)
+
+        # Determine execution mode from server config
+        mode = ExecutionMode.LIVE if self._execute_mode == "live" else ExecutionMode.DRY_RUN
+
+        if mode == ExecutionMode.LIVE:
+            # Atomic CAS with device lock: APPROVED -> APPLYING
+            acquired = self._repo.acquire_device_for_applying(plan.id, plan.device_id, now)
+            if not acquired:
+                if self._repo.is_device_busy(plan.device_id):
+                    raise DeviceBusyError(f"Device '{plan.device_id}' is currently busy with another execution.")
+                raise InvalidTransitionError(f"Plan #{plan.id} is no longer in APPROVED status.")
+        else:
+            # DRY_RUN: plan stays in APPROVED, but still check if device is busy
+            if self._repo.is_device_busy(plan.device_id):
+                raise DeviceBusyError(f"Device '{plan.device_id}' is currently busy with another execution.")
+
+        # Create execution record
+        execution = RemediationExecution(
+            id=0,
+            plan_id=plan.id,
+            mode=mode,
+            started_at=now,
+            finished_at=None,
+            started_by=actor_username,
+            result=ExecutionResult.RUNNING,
+            failure_code=None,
+            changes_sent=False,
+            pre_run_id=None,
+            post_run_id=None,
+            rollback_run_id=None,
+            persist_status="NOT_REQUESTED",
+            needs_manual_attention=False,
+            steps=(),
+        )
+        exec_id = self._repo.create_execution(execution)
+        from dataclasses import replace
+        created_exec = replace(execution, id=exec_id)
+
+        # Record events
+        self._repo.add_event(
+            plan.id,
+            now,
+            "APPLY_STARTED",
+            actor_username,
+            f"Execution #{exec_id} queued (mode: {mode.value})",
+        )
+        sec_event = (
+            SecurityEventType.REMEDIATION_APPLY_STARTED
+            if mode == ExecutionMode.LIVE
+            else SecurityEventType.REMEDIATION_DRY_RUN
+        )
+        self._event_repo.add(
+            occurred_at=now,
+            event_type=sec_event,
+            actor_username=actor_username,
+            client_ip=client_ip,
+            target=plan.device_id,
+            detail=f"Execution #{exec_id} queued for plan #{plan.id} (mode: {mode.value})",
+        )
+
+        # Submit background job if executor is available
+        if self._executor is not None:
+            self._executor.execute_async(plan.id, exec_id)
+
+        return created_exec
+
+    def list_executions(self, plan_id: int) -> list[RemediationExecution]:
+        self._check_enabled()
+        self.get_plan(plan_id)
+        return self._repo.list_executions_for_plan(plan_id)
+
+    def get_execution(self, plan_id: int, execution_id: int) -> RemediationExecution:
+        self._check_enabled()
+        self.get_plan(plan_id)
+        exc = self._repo.get_execution(execution_id)
+        if exc is None or exc.plan_id != plan_id:
+            from app.domain.errors import NotFoundError
+            raise NotFoundError(f"Execution #{execution_id} not found for plan #{plan_id}")
+        return exc
+
+    def list_attention(self) -> list[tuple[RemediationPlan, RemediationExecution]]:
+        self._check_enabled()
+        return self._repo.list_attention_executions()
+
+    def acknowledge_attention(
+        self,
+        plan_id: int,
+        actor_username: str,
+        actor_user_id: int | None,
+        actor_role: Role,
+        note: str,
+    ) -> None:
+        self._check_enabled()
+        if actor_user_id is None:
+            raise UserSessionRequiredError("An interactive user session is required to acknowledge attention.")
+        if actor_role != Role.ADMIN:
+            raise ForbiddenError("Only administrators can acknowledge manual attention.")
+
+        plan = self.get_plan(plan_id)
+        now = self._now()
+        ack_ok = self._repo.acknowledge_attention(plan.id, actor_username, note, now)
+        if not ack_ok:
+            raise InvalidTransitionError("No active manual attention execution found for plan.")
+
+        self._repo.add_event(
+            plan.id,
+            now,
+            "ACKNOWLEDGED",
+            actor_username,
+            f"Manual attention acknowledged: {note[:100]}",
+        )
+
+    def get_execution_status(self) -> dict[str, Any]:
+        has_writer = bool(self._executor is not None)
+        runner_busy = bool(self._executor.runner.is_busy() if self._executor else False)
+        return {
+            "mode": self._execute_mode,
+            "write_account_configured": has_writer,
+            "runner_busy": runner_busy,
+        }
+

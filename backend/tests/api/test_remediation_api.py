@@ -303,3 +303,125 @@ def test_remediation_disabled(tmp_path: Path):
     )
     assert resp.status_code == 503
     assert resp.json()["error"]["code"] == "REMEDIATION_DISABLED"
+
+
+def test_execution_api_lifecycle(remediation_env):
+    client, app, db_file = remediation_env
+
+    # 1. Propose by operator
+    _login(client, "operator_user", "OperPass123!")
+    resp_prop = client.post(
+        "/api/v1/audits/101/findings/NET-008/remediation",
+        json={"persist_after_verify": False},
+    )
+    assert resp_prop.status_code == 201
+    plan_id = resp_prop.json()["id"]
+
+    # 2. Approve by admin
+    _login(client, "admin_approver", "AdminPass456!")
+    resp_appr = client.post(
+        f"/api/v1/remediation-plans/{plan_id}/approve",
+        json={"password": "AdminPass456!"},
+    )
+    assert resp_appr.status_code == 200
+    assert resp_appr.json()["status"] == "APPROVED"
+
+    # 3. Check execution-status when execute_mode=off (default in remediation_env)
+    resp_status = client.get("/api/v1/remediation/execution-status")
+    assert resp_status.status_code == 200
+    assert resp_status.json()["mode"] == "off"
+
+    # 4. Attempt apply with mode=off -> 503 EXECUTION_DISABLED
+    resp_apply_disabled = client.post(
+        f"/api/v1/remediation-plans/{plan_id}/apply",
+        json={"confirm_device_id": "dev-ios-1", "password": "AdminPass456!"},
+    )
+    assert resp_apply_disabled.status_code == 503
+    assert resp_apply_disabled.json()["error"]["code"] == "EXECUTION_DISABLED"
+
+    # Now create app with execute_mode="dry_run"
+    settings = Settings(
+        db_path=db_file,
+        api_key="a" * 32,
+        auth_disabled=False,
+        cors_origins=(),
+        allowed_networks=(),
+        enable_docs=False,
+        public_mode=False,
+        session_cookie_secure=False,
+        remediation_enabled=True,
+        remediation_require_distinct_approver=True,
+        remediation_execute_mode="dry_run",
+        default_credentials=None,
+    )
+    # Give default read credentials so dry_run can start
+    from app.domain.entities.device import Credentials
+    settings = Settings(
+        db_path=db_file,
+        api_key="a" * 32,
+        auth_disabled=False,
+        cors_origins=(),
+        allowed_networks=(),
+        enable_docs=False,
+        public_mode=False,
+        session_cookie_secure=False,
+        remediation_enabled=True,
+        remediation_require_distinct_approver=True,
+        remediation_execute_mode="dry_run",
+        default_credentials=Credentials("admin", "pass"),
+    )
+    app_dry = create_app(settings=settings)
+    client_dry = TestClient(app_dry, headers={"Host": "testserver", "Origin": "http://testserver"})
+
+    # 5. RBAC: operator cannot apply -> 403
+    _login(client_dry, "operator_user", "OperPass123!")
+    resp_op_apply = client_dry.post(
+        f"/api/v1/remediation-plans/{plan_id}/apply",
+        json={"confirm_device_id": "dev-ios-1", "password": "OperPass123!"},
+    )
+    assert resp_op_apply.status_code == 403
+
+    # 6. Admin apply with confirmation mismatch -> 422 CONFIRMATION_MISMATCH
+    _login(client_dry, "admin_approver", "AdminPass456!")
+    resp_mismatch = client_dry.post(
+        f"/api/v1/remediation-plans/{plan_id}/apply",
+        json={"confirm_device_id": "wrong-device", "password": "AdminPass456!"},
+    )
+    assert resp_mismatch.status_code == 422
+    assert resp_mismatch.json()["error"]["code"] == "CONFIRMATION_MISMATCH"
+
+    # 7. Admin apply with wrong password -> 422 REAUTH_FAILED
+    resp_wrong_pass = client_dry.post(
+        f"/api/v1/remediation-plans/{plan_id}/apply",
+        json={"confirm_device_id": "dev-ios-1", "password": "WrongPassword!"},
+    )
+    assert resp_wrong_pass.status_code == 422
+    assert resp_wrong_pass.json()["error"]["code"] == "REAUTH_FAILED"
+
+    # 8. Successful apply in dry_run mode -> 202 Accepted
+    resp_apply_ok = client_dry.post(
+        f"/api/v1/remediation-plans/{plan_id}/apply",
+        json={"confirm_device_id": "dev-ios-1", "password": "AdminPass456!"},
+    )
+    assert resp_apply_ok.status_code == 202, f"Got {resp_apply_ok.status_code}: {resp_apply_ok.text}"
+    data = resp_apply_ok.json()
+    assert data["plan_id"] == plan_id
+    assert data["mode"] == "dry_run"
+    exec_id = data["execution_id"]
+
+    # 9. List executions
+    resp_execs = client_dry.get(f"/api/v1/remediation-plans/{plan_id}/executions")
+    assert resp_execs.status_code == 200
+    assert len(resp_execs.json()) >= 1
+    assert resp_execs.json()[0]["id"] == exec_id
+
+    # 10. Get single execution
+    resp_exec = client_dry.get(f"/api/v1/remediation-plans/{plan_id}/executions/{exec_id}")
+    assert resp_exec.status_code == 200
+    assert resp_exec.json()["id"] == exec_id
+
+    # 11. Check attention endpoints
+    resp_att = client_dry.get("/api/v1/remediation/attention")
+    assert resp_att.status_code == 200
+    assert isinstance(resp_att.json(), list)
+

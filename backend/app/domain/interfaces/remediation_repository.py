@@ -5,7 +5,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from app.domain.entities.remediation import PlanEvent, PlanStatus, RemediationPlan
+from app.domain.entities.remediation import (
+    PlanEvent,
+    PlanStatus,
+    RemediationExecution,
+    RemediationPlan,
+)
 
 
 class RemediationRepository(ABC):
@@ -80,3 +85,69 @@ class RemediationRepository(ABC):
     def list_events(self, plan_id: int) -> list[PlanEvent]:
         """Return all events for a plan ordered by id ASC."""
         raise NotImplementedError
+
+    @abstractmethod
+    def acquire_device_for_applying(
+        self,
+        plan_id: int,
+        device_id: str,
+        updated_at: datetime,
+    ) -> bool:
+        """Atomically transition plan from APPROVED to APPLYING with device lock.
+
+        Only succeeds if plan is in APPROVED and no other plan for device_id is in APPLYING or APPLIED.
+        Returns True if transition succeeded, False otherwise.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_device_busy(self, device_id: str) -> bool:
+        """Return True if any plan for device_id is currently in APPLYING or APPLIED status."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_execution(self, execution: RemediationExecution) -> int:
+        """Persist a new execution record and return its ID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_execution(self, execution: RemediationExecution) -> None:
+        """Update an existing execution record."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_execution(self, execution_id: int) -> RemediationExecution | None:
+        """Return execution by ID, or None."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_executions_for_plan(self, plan_id: int) -> list[RemediationExecution]:
+        """List all execution records for a plan, ordered by started_at DESC."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_latest_execution_for_plan(self, plan_id: int) -> RemediationExecution | None:
+        """Return the latest execution record for a plan, or None."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_attention_executions(self) -> list[tuple[RemediationPlan, RemediationExecution]]:
+        """Return all plans with unacknowledged executions needing manual attention."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def acknowledge_attention(
+        self,
+        plan_id: int,
+        actor: str,
+        note: str,
+        acknowledged_at: datetime,
+    ) -> bool:
+        """Record acknowledgement for manual attention executions of a plan."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_stale_running_executions(self, cutoff: datetime) -> list[RemediationExecution]:
+        """Return RUNNING executions started before cutoff."""
+        raise NotImplementedError
+

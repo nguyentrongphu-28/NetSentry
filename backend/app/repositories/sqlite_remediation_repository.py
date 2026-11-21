@@ -10,8 +10,12 @@ from datetime import datetime
 from typing import Any, Generator
 
 from app.domain.entities.remediation import (
+    ExecutionMode,
+    ExecutionResult,
+    ExecutionStep,
     PlanEvent,
     PlanStatus,
+    RemediationExecution,
     RemediationPlan,
     RiskLevel,
 )
@@ -59,6 +63,40 @@ def _row_to_event(row: sqlite3.Row) -> PlanEvent:
         event_type=row["event_type"],
         detail=row["detail"],
     )
+
+
+def _row_to_execution(row: sqlite3.Row) -> RemediationExecution:
+    steps_raw = json.loads(row["steps_json"])
+    steps = tuple(
+        ExecutionStep(
+            step=s["step"],
+            status=s["status"],
+            at=datetime.fromisoformat(s["at"]),
+            detail=s.get("detail"),
+        )
+        for s in steps_raw
+    )
+    return RemediationExecution(
+        id=row["id"],
+        plan_id=row["plan_id"],
+        mode=ExecutionMode(row["mode"]),
+        started_at=datetime.fromisoformat(row["started_at"]),
+        finished_at=_parse_iso(row["finished_at"]),
+        started_by=row["started_by"],
+        result=ExecutionResult(row["result"]),
+        failure_code=row["failure_code"],
+        changes_sent=bool(row["changes_sent"]),
+        pre_run_id=row["pre_run_id"],
+        post_run_id=row["post_run_id"],
+        rollback_run_id=row["rollback_run_id"],
+        persist_status=row["persist_status"],
+        needs_manual_attention=bool(row["needs_manual_attention"]),
+        steps=steps,
+        acknowledged_at=_parse_iso(row["acknowledged_at"]),
+        acknowledged_by=row["acknowledged_by"],
+        acknowledgement_note=row["acknowledgement_note"],
+    )
+
 
 
 class SqliteRemediationRepository(RemediationRepository):
@@ -285,3 +323,224 @@ class SqliteRemediationRepository(RemediationRepository):
                 (plan_id,),
             )
             return [_row_to_event(r) for r in cursor.fetchall()]
+
+    def acquire_device_for_applying(
+        self,
+        plan_id: int,
+        device_id: str,
+        updated_at: datetime,
+    ) -> bool:
+        """Atomically transition plan from APPROVED to APPLYING with device lock."""
+        query = """
+            UPDATE remediation_plans
+            SET status = 'APPLYING', updated_at = ?
+            WHERE id = ? AND status = 'APPROVED'
+              AND NOT EXISTS (
+                  SELECT 1 FROM remediation_plans
+                  WHERE device_id = ? AND status IN ('APPLYING', 'APPLIED')
+              )
+        """
+        with self._get_conn() as conn:
+            with conn:
+                cursor = conn.execute(query, (updated_at.isoformat(), plan_id, device_id))
+                return cursor.rowcount == 1
+
+    def is_device_busy(self, device_id: str) -> bool:
+        """Return True if any plan for device_id is in APPLYING or APPLIED."""
+        query = """
+            SELECT 1 FROM remediation_plans
+            WHERE device_id = ? AND status IN ('APPLYING', 'APPLIED')
+            LIMIT 1
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute(query, (device_id,))
+            return cursor.fetchone() is not None
+
+    def create_execution(self, execution: RemediationExecution) -> int:
+        steps_json = json.dumps([
+            {
+                "step": s.step,
+                "status": s.status,
+                "at": s.at.isoformat(),
+                "detail": s.detail,
+            }
+            for s in execution.steps
+        ])
+        query = """
+            INSERT INTO remediation_executions (
+                plan_id, mode, started_at, finished_at, started_by, result,
+                failure_code, changes_sent, pre_run_id, post_run_id, rollback_run_id,
+                persist_status, needs_manual_attention, steps_json,
+                acknowledged_at, acknowledged_by, acknowledgement_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            execution.plan_id,
+            execution.mode.value,
+            execution.started_at.isoformat(),
+            execution.finished_at.isoformat() if execution.finished_at else None,
+            execution.started_by,
+            execution.result.value,
+            execution.failure_code,
+            1 if execution.changes_sent else 0,
+            execution.pre_run_id,
+            execution.post_run_id,
+            execution.rollback_run_id,
+            execution.persist_status,
+            1 if execution.needs_manual_attention else 0,
+            steps_json,
+            execution.acknowledged_at.isoformat() if execution.acknowledged_at else None,
+            execution.acknowledged_by,
+            execution.acknowledgement_note,
+        )
+        with self._get_conn() as conn:
+            with conn:
+                cursor = conn.execute(query, params)
+                return cursor.lastrowid  # type: ignore[return-value]
+
+    def update_execution(self, execution: RemediationExecution) -> None:
+        steps_json = json.dumps([
+            {
+                "step": s.step,
+                "status": s.status,
+                "at": s.at.isoformat(),
+                "detail": s.detail,
+            }
+            for s in execution.steps
+        ])
+        query = """
+            UPDATE remediation_executions SET
+                finished_at = ?,
+                result = ?,
+                failure_code = ?,
+                changes_sent = ?,
+                pre_run_id = ?,
+                post_run_id = ?,
+                rollback_run_id = ?,
+                persist_status = ?,
+                needs_manual_attention = ?,
+                steps_json = ?,
+                acknowledged_at = ?,
+                acknowledged_by = ?,
+                acknowledgement_note = ?
+            WHERE id = ?
+        """
+        params = (
+            execution.finished_at.isoformat() if execution.finished_at else None,
+            execution.result.value,
+            execution.failure_code,
+            1 if execution.changes_sent else 0,
+            execution.pre_run_id,
+            execution.post_run_id,
+            execution.rollback_run_id,
+            execution.persist_status,
+            1 if execution.needs_manual_attention else 0,
+            steps_json,
+            execution.acknowledged_at.isoformat() if execution.acknowledged_at else None,
+            execution.acknowledged_by,
+            execution.acknowledgement_note,
+            execution.id,
+        )
+        with self._get_conn() as conn:
+            with conn:
+                conn.execute(query, params)
+
+    def get_execution(self, execution_id: int) -> RemediationExecution | None:
+        query = "SELECT * FROM remediation_executions WHERE id = ?"
+        with self._get_conn() as conn:
+            cursor = conn.execute(query, (execution_id,))
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return _row_to_execution(row)
+
+    def list_executions_for_plan(self, plan_id: int) -> list[RemediationExecution]:
+        query = "SELECT * FROM remediation_executions WHERE plan_id = ? ORDER BY id DESC"
+        with self._get_conn() as conn:
+            cursor = conn.execute(query, (plan_id,))
+            return [_row_to_execution(r) for r in cursor.fetchall()]
+
+    def get_latest_execution_for_plan(self, plan_id: int) -> RemediationExecution | None:
+        query = "SELECT * FROM remediation_executions WHERE plan_id = ? ORDER BY id DESC LIMIT 1"
+        with self._get_conn() as conn:
+            cursor = conn.execute(query, (plan_id,))
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return _row_to_execution(row)
+
+    def list_attention_executions(self) -> list[tuple[RemediationPlan, RemediationExecution]]:
+        query = """
+            SELECT
+                p.id AS p_id, p.device_id AS p_device_id, p.run_id AS p_run_id,
+                p.rule_id AS p_rule_id, p.template_id AS p_template_id,
+                p.template_version AS p_template_version, p.risk_level AS p_risk_level,
+                p.commands_json AS p_commands_json, p.persist_after_verify AS p_persist_after_verify,
+                p.plan_hash AS p_plan_hash, p.status AS p_status, p.proposed_by AS p_proposed_by,
+                p.proposed_at AS p_proposed_at, p.decided_by AS p_decided_by,
+                p.decided_at AS p_decided_at, p.decision_reason AS p_decision_reason,
+                p.approved_plan_hash AS p_approved_plan_hash, p.expires_at AS p_expires_at,
+                p.updated_at AS p_updated_at,
+                e.*
+            FROM remediation_executions e
+            JOIN remediation_plans p ON p.id = e.plan_id
+            WHERE e.needs_manual_attention = 1 AND e.acknowledged_at IS NULL
+            ORDER BY e.started_at DESC
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute(query)
+            results: list[tuple[RemediationPlan, RemediationExecution]] = []
+            for row in cursor.fetchall():
+                plan = RemediationPlan(
+                    id=row["p_id"],
+                    device_id=row["p_device_id"],
+                    run_id=row["p_run_id"],
+                    rule_id=row["p_rule_id"],
+                    template_id=row["p_template_id"],
+                    template_version=row["p_template_version"],
+                    risk_level=RiskLevel(row["p_risk_level"]),
+                    commands=tuple(json.loads(row["p_commands_json"])),
+                    persist_after_verify=bool(row["p_persist_after_verify"]),
+                    plan_hash=row["p_plan_hash"],
+                    status=PlanStatus(row["p_status"]),
+                    proposed_by=row["p_proposed_by"],
+                    proposed_at=datetime.fromisoformat(row["p_proposed_at"]),
+                    decided_by=row["p_decided_by"],
+                    decided_at=_parse_iso(row["p_decided_at"]),
+                    decision_reason=row["p_decision_reason"],
+                    approved_plan_hash=row["p_approved_plan_hash"],
+                    expires_at=datetime.fromisoformat(row["p_expires_at"]),
+                    updated_at=datetime.fromisoformat(row["p_updated_at"]),
+                )
+                exec_item = _row_to_execution(row)
+                results.append((plan, exec_item))
+            return results
+
+    def acknowledge_attention(
+        self,
+        plan_id: int,
+        actor: str,
+        note: str,
+        acknowledged_at: datetime,
+    ) -> bool:
+        clean_note = note[:200] if note else ""
+        query = """
+            UPDATE remediation_executions
+            SET acknowledged_at = ?, acknowledged_by = ?, acknowledgement_note = ?
+            WHERE plan_id = ? AND needs_manual_attention = 1 AND acknowledged_at IS NULL
+        """
+        with self._get_conn() as conn:
+            with conn:
+                cursor = conn.execute(query, (acknowledged_at.isoformat(), actor, clean_note, plan_id))
+                return cursor.rowcount > 0
+
+    def get_stale_running_executions(self, cutoff: datetime) -> list[RemediationExecution]:
+        query = """
+            SELECT * FROM remediation_executions
+            WHERE result = 'RUNNING' AND started_at <= ?
+            ORDER BY started_at ASC
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute(query, (cutoff.isoformat(),))
+            return [_row_to_execution(r) for r in cursor.fetchall()]
+

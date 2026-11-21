@@ -40,7 +40,19 @@ class RemediationPlanOut(BaseModel):
     device_id: str
     run_id: int
     rule_id: str
-    status: Literal["PROPOSED", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED", "APPLYING", "VERIFYING", "VERIFIED", "VERIFY_FAILED", "ROLLED_BACK"]
+    status: Literal[
+        "PROPOSED",
+        "APPROVED",
+        "REJECTED",
+        "CANCELLED",
+        "EXPIRED",
+        "APPLYING",
+        "APPLIED",
+        "VERIFIED",
+        "VERIFY_FAILED",
+        "ROLLED_BACK",
+        "FAILED",
+    ]
     risk_level: Literal["LOW", "MEDIUM", "HIGH"]
     persist_after_verify: bool
     proposed_by: str
@@ -73,6 +85,7 @@ class RemediationTemplateOut(BaseModel):
     risks: str
     reversible: bool
     rollback_note: str
+    rollback_commands: list[str] = Field(default_factory=list)
     platforms: list[str]
 
 
@@ -87,3 +100,60 @@ class ManualGuidanceOut(BaseModel):
 class TemplatesResponseOut(BaseModel):
     templates: list[RemediationTemplateOut]
     manual_guidance: list[ManualGuidanceOut]
+
+
+# Execution Schemas (Remediation D)
+
+class ApplyPlanIn(BaseModel):
+    confirm_device_id: str = Field(..., min_length=1, description="Exact target device_id to prevent misapplied execution")
+    password: str = Field(..., min_length=1, description="Admin password for step-up re-authentication")
+
+
+class ApplyResponseOut(BaseModel):
+    plan_id: int
+    execution_id: int
+    mode: str
+
+
+class ExecutionStepOut(BaseModel):
+    step: str
+    status: str
+    at: str
+    detail: str | None = None
+
+
+class RemediationExecutionOut(BaseModel):
+    id: int
+    plan_id: int
+    mode: str
+    started_at: str
+    finished_at: str | None = None
+    started_by: str
+    result: str
+    failure_code: str | None = None
+    changes_sent: bool
+    pre_run_id: int | None = None
+    post_run_id: int | None = None
+    rollback_run_id: int | None = None
+    persist_status: str
+    needs_manual_attention: bool
+    steps: list[ExecutionStepOut]
+    acknowledged_at: str | None = None
+    acknowledged_by: str | None = None
+    acknowledgement_note: str | None = None
+
+
+class ExecutionStatusOut(BaseModel):
+    mode: str
+    write_account_configured: bool
+    runner_busy: bool
+
+
+class AttentionPlanOut(BaseModel):
+    plan: RemediationPlanOut
+    execution: RemediationExecutionOut
+
+
+class AcknowledgeAttentionIn(BaseModel):
+    note: str = Field(..., max_length=200, description="Notes on manual verification/resolution")
+

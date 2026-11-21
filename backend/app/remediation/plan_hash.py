@@ -14,16 +14,18 @@ def compute_plan_hash(
     template_version: int,
     commands: Sequence[str],
     persist_after_verify: bool,
+    rollback_commands: Sequence[str] = (),
 ) -> str:
     """Compute normalized SHA-256 hash of a remediation plan draft.
 
-    Any change to target device, rule, template, commands or persist flag
-    produces a completely different hash.
+    Any change to target device, rule, template, commands, rollback commands
+    or persist flag produces a completely different hash.
     """
     canonical_payload = {
         "commands": list(commands),
         "device_id": str(device_id),
         "persist_after_verify": bool(persist_after_verify),
+        "rollback_commands": list(rollback_commands),
         "rule_id": str(rule_id),
         "template_id": str(template_id),
         "template_version": int(template_version),

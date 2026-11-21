@@ -4,11 +4,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getRemediationPlan,
   cancelRemediationPlan,
+  getExecutionStatus,
+  listPlanExecutions,
 } from "../services/remediationApi";
 import { PlanStatusBadge } from "../components/remediation/PlanStatusBadge";
 import { PlanTimeline } from "../components/remediation/PlanTimeline";
 import { ApproveDialog } from "../components/remediation/ApproveDialog";
 import { RejectDialog } from "../components/remediation/RejectDialog";
+import { ApplyDialog } from "../components/remediation/ApplyDialog";
+import { ExecutionProgress } from "../components/remediation/ExecutionProgress";
+import { ExecutionResultBanner } from "../components/remediation/ExecutionResultBanner";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
@@ -26,6 +31,8 @@ import {
   RotateCcw,
   Hash,
   Info,
+  Play,
+  ShieldAlert,
 } from "lucide-react";
 
 export function RemediationPlanDetailPage(): React.JSX.Element {
@@ -38,6 +45,7 @@ export function RemediationPlanDetailPage(): React.JSX.Element {
 
   const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const {
@@ -50,6 +58,25 @@ export function RemediationPlanDetailPage(): React.JSX.Element {
     queryKey: ["remediation-plan-detail", planIdNum],
     queryFn: () => getRemediationPlan(planIdNum),
     enabled: isValidPlanId,
+  });
+
+  const { data: execStatus } = useQuery({
+    queryKey: ["remediation-exec-status"],
+    queryFn: () => getExecutionStatus(),
+  });
+
+  const {
+    data: executions,
+    refetch: refetchExecutions,
+  } = useQuery({
+    queryKey: ["remediation-executions", planIdNum],
+    queryFn: () => listPlanExecutions(planIdNum),
+    enabled: isValidPlanId,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const latest = data && data.length > 0 ? data[0] : null;
+      return latest?.result === "RUNNING" ? 2000 : false;
+    },
   });
 
   const cancelMutation = useMutation({
@@ -109,6 +136,13 @@ export function RemediationPlanDetailPage(): React.JSX.Element {
     (isAdmin || isProposer);
   const canApprove = plan.status === "PROPOSED" && isAdmin;
   const canReject = plan.status === "PROPOSED" && isAdmin;
+  const canApply =
+    plan.status === "APPROVED" &&
+    isAdmin &&
+    execStatus &&
+    execStatus.mode !== "off";
+
+  const latestExecution = executions && executions.length > 0 ? executions[0] : null;
 
   const riskVariant =
     plan.risk_level === "HIGH"
@@ -146,8 +180,8 @@ export function RemediationPlanDetailPage(): React.JSX.Element {
         <ErrorBanner message={actionError} />
       )}
 
-      {/* Banner for APPROVED plan */}
-      {plan.status === "APPROVED" && (
+      {/* Mode off banner when APPROVED */}
+      {plan.status === "APPROVED" && (!execStatus || execStatus.mode === "off") && (
         <div className="rounded-xl bg-emerald-50 p-4 border border-emerald-200 flex items-start space-x-3">
           <Info className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
           <div>
@@ -157,6 +191,22 @@ export function RemediationPlanDetailPage(): React.JSX.Element {
             </p>
           </div>
         </div>
+      )}
+
+      {/* Execution Result Banner */}
+      {latestExecution && (
+        <ExecutionResultBanner execution={latestExecution} />
+      )}
+
+      {/* Execution Progress Stepper */}
+      {latestExecution && (
+        <ExecutionProgress
+          execution={latestExecution}
+          onRefresh={() => {
+            refetch();
+            refetchExecutions();
+          }}
+        />
       )}
 
       {/* Header Card */}
@@ -195,6 +245,23 @@ export function RemediationPlanDetailPage(): React.JSX.Element {
                 onClick={() => setIsRejectOpen(true)}
               >
                 {STRINGS.remediation.reject.btnReject}
+              </Button>
+            )}
+            {canApply && (
+              <Button
+                variant={execStatus?.mode === "dry_run" ? "secondary" : "danger"}
+                icon={
+                  execStatus?.mode === "dry_run" ? (
+                    <Play className="w-4 h-4" />
+                  ) : (
+                    <ShieldAlert className="w-4 h-4" />
+                  )
+                }
+                onClick={() => setIsApplyOpen(true)}
+              >
+                {execStatus?.mode === "dry_run"
+                  ? STRINGS.remediation.execute.btnDryRun
+                  : STRINGS.remediation.execute.btnApply}
               </Button>
             )}
             {canCancel && (
@@ -353,6 +420,20 @@ export function RemediationPlanDetailPage(): React.JSX.Element {
           planId={plan.id}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ["remediation-plan-detail", planIdNum] });
+            queryClient.invalidateQueries({ queryKey: ["device-remediation-plans"] });
+          }}
+        />
+      )}
+
+      {canApply && execStatus && (
+        <ApplyDialog
+          isOpen={isApplyOpen}
+          onClose={() => setIsApplyOpen(false)}
+          plan={plan}
+          executionMode={execStatus.mode}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["remediation-plan-detail", planIdNum] });
+            queryClient.invalidateQueries({ queryKey: ["remediation-executions", planIdNum] });
             queryClient.invalidateQueries({ queryKey: ["device-remediation-plans"] });
           }}
         />

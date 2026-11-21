@@ -8,7 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from app.domain.entities.remediation import PlanStatus, RemediationPlan, RiskLevel
+from app.domain.entities.remediation import (
+    ExecutionMode,
+    ExecutionResult,
+    ExecutionStep,
+    PlanStatus,
+    RemediationExecution,
+    RemediationPlan,
+    RiskLevel,
+)
 from app.domain.errors import ActivePlanExistsError
 from app.repositories.database import connect, init_db
 from app.repositories.sqlite_remediation_repository import SqliteRemediationRepository
@@ -180,3 +188,102 @@ class TestSqliteRemediationRepository:
         assert events[1].event_type == "APPROVED"
         assert events[0].actor == "operator1"
         assert events[1].actor == "admin"
+
+    def test_acquire_device_for_applying_and_device_busy(self, db_conn: sqlite3.Connection) -> None:
+        repo = SqliteRemediationRepository(db_conn)
+        now = datetime.now(timezone.utc)
+
+        # Plan 1 for Router-Core-01
+        plan1_id = repo.create_plan(_make_plan(rule_id="NET-008", status=PlanStatus.APPROVED))
+        # Plan 2 for Router-Core-01 (different rule)
+        plan2_id = repo.create_plan(_make_plan(rule_id="NET-004", status=PlanStatus.APPROVED))
+
+        # Initially device is not busy
+        assert not repo.is_device_busy("Router-Core-01")
+
+        # Acquire device for plan 1 -> succeeds
+        acquired = repo.acquire_device_for_applying(plan1_id, "Router-Core-01", now)
+        assert acquired is True
+        assert repo.is_device_busy("Router-Core-01")
+        assert repo.get_plan(plan1_id).status == PlanStatus.APPLYING
+
+        # Acquire device for plan 2 on same device -> fails because device is busy
+        acquired_second = repo.acquire_device_for_applying(plan2_id, "Router-Core-01", now)
+        assert acquired_second is False
+        assert repo.get_plan(plan2_id).status == PlanStatus.APPROVED
+
+    def test_execution_crud_and_attention_flow(self, db_conn: sqlite3.Connection) -> None:
+        repo = SqliteRemediationRepository(db_conn)
+        now = datetime.now(timezone.utc)
+        plan_id = repo.create_plan(_make_plan(status=PlanStatus.APPLYING))
+
+        step1 = ExecutionStep(step="PRECHECK_AUDIT", status="OK", at=now, detail="Precheck passed")
+        execution = RemediationExecution(
+            id=0,
+            plan_id=plan_id,
+            mode=ExecutionMode.LIVE,
+            started_at=now,
+            finished_at=None,
+            started_by="admin1",
+            result=ExecutionResult.RUNNING,
+            failure_code=None,
+            changes_sent=False,
+            pre_run_id=101,
+            post_run_id=None,
+            rollback_run_id=None,
+            persist_status="NOT_REQUESTED",
+            needs_manual_attention=False,
+            steps=(step1,),
+        )
+        exec_id = repo.create_execution(execution)
+        assert exec_id > 0
+
+        # Fetch execution
+        fetched = repo.get_execution(exec_id)
+        assert fetched is not None
+        assert fetched.id == exec_id
+        assert fetched.plan_id == plan_id
+        assert fetched.result == ExecutionResult.RUNNING
+        assert len(fetched.steps) == 1
+        assert fetched.steps[0].step == "PRECHECK_AUDIT"
+
+        # Update execution to FAILED + needs_manual_attention
+        step2 = ExecutionStep(step="WRITE", status="FAILED", at=now, detail="Device rejected command")
+        updated_exec = RemediationExecution(
+            id=exec_id,
+            plan_id=plan_id,
+            mode=ExecutionMode.LIVE,
+            started_at=now,
+            finished_at=now,
+            started_by="admin1",
+            result=ExecutionResult.FAILED,
+            failure_code="WRITE_REJECTED",
+            changes_sent=True,
+            pre_run_id=101,
+            post_run_id=None,
+            rollback_run_id=None,
+            persist_status="NOT_REQUESTED",
+            needs_manual_attention=True,
+            steps=(step1, step2),
+        )
+        repo.update_execution(updated_exec)
+
+        # Check attention list
+        attention_list = repo.list_attention_executions()
+        assert len(attention_list) == 1
+        p, e = attention_list[0]
+        assert p.id == plan_id
+        assert e.id == exec_id
+        assert e.needs_manual_attention is True
+        assert e.acknowledged_at is None
+
+        # Acknowledge attention
+        ack_ok = repo.acknowledge_attention(plan_id, "admin2", "Checked router console manually", now)
+        assert ack_ok is True
+
+        # Attention list should now be empty
+        assert len(repo.list_attention_executions()) == 0
+        refetched = repo.get_execution(exec_id)
+        assert refetched.acknowledged_by == "admin2"
+        assert refetched.acknowledgement_note == "Checked router console manually"
+

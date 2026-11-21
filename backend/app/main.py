@@ -11,6 +11,7 @@ from app.api.middleware import OriginCheckMiddleware, SecurityHeadersMiddleware
 from app.api.routes import ai, audits, auth, baselines, compare, devices, health, remediation, security_events, snapshots, users
 from app.core.config import Settings
 from app.clients.ollama_client import OllamaClient
+from app.factories.config_writer_factory import DefaultConfigWriterFactory
 from app.factories.connector_factory import ConnectorFactory, build_default_connector_factory
 from app.repositories.audit_repository import SqliteAuditRepository
 from app.repositories.database import connect, init_db
@@ -35,6 +36,7 @@ from app.services.baseline_service import BaselineService
 from app.services.device_service import DeviceService
 from app.services.diff_service import DiffService
 from app.services.drift_service import DriftService
+from app.services.remediation_executor import RemediationExecutor
 from app.services.remediation_service import RemediationService
 from app.services.security_event_service import SecurityEventService
 from app.services.snapshot_service import SnapshotService
@@ -182,6 +184,26 @@ def create_app(
     )
 
     remediation_repo = SqliteRemediationRepository(app_settings.db_path)
+
+    # Remediation Executor setup
+    executor: RemediationExecutor | None = None
+    if app_settings.remediation_execute_mode != "off":
+        writer_factory = DefaultConfigWriterFactory(
+            write_username=app_settings.ssh_write_username or "",
+            write_password=app_settings.ssh_write_password or "",
+            write_enable_secret=app_settings.ssh_write_enable_secret or "",
+            timeout=app_settings.remediation_step_timeout_seconds,
+        )
+        executor = RemediationExecutor(
+            remediation_repo=remediation_repo,
+            writer_factory=writer_factory,
+            audit_run_service=audit_run_service,
+            diff_service=diff_service,
+            device_repo=device_repo,
+            security_event_repo=event_repo,
+        )
+        executor.scan_and_recover_stale_executions(app_settings.remediation_execution_timeout_minutes)
+
     remediation_service = RemediationService(
         remediation_repo=remediation_repo,
         device_repo=device_repo,
@@ -193,6 +215,8 @@ def create_app(
         approval_ttl_minutes=app_settings.remediation_approval_ttl_minutes,
         max_audit_age_minutes=app_settings.remediation_max_audit_age_minutes,
         require_distinct_approver=app_settings.remediation_require_distinct_approver,
+        executor=executor,
+        execute_mode=app_settings.remediation_execute_mode,
     )
     remediation_service.scan_and_expire_stale_plans()
 
