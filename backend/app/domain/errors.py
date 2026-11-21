@@ -173,3 +173,60 @@ class BodyCredentialsDisabledError(NetSentryError):
     """Raised when credentials are provided in request body but server forbids it (e.g. public mode)."""
 
     code: str = "BODY_CREDENTIALS_DISABLED"
+
+
+# ---------------------------------------------------------------------------
+# Snapshot & AI Explanation errors (added in snapshot-ai phase)
+# ---------------------------------------------------------------------------
+
+class SnapshotNotFoundError(NetSentryError):
+    """Raised when a requested configuration snapshot does not exist."""
+
+    code: str = "SNAPSHOT_NOT_FOUND"
+
+
+class ContentDisabledError(NetSentryError):
+    """Raised when snapshot content/config diff is requested but disabled (e.g. public mode)."""
+
+    code: str = "CONTENT_DISABLED"
+
+
+class DiffInputError(NetSentryError):
+    """Raised when diff inputs are invalid (different devices, same run, etc.)."""
+
+    code: str = "DIFF_INPUT_INVALID"
+
+
+class AiDisabledError(NetSentryError):
+    """Raised when AI explanation is disabled."""
+
+    code: str = "AI_DISABLED"
+
+
+class AiUnavailableError(NetSentryError):
+    """Raised when Ollama / LLM service is unreachable or does not respond."""
+
+    code: str = "AI_UNAVAILABLE"
+
+
+class AiBusyError(NetSentryError):
+    """Raised when AI service exceeds concurrency limits."""
+
+    code: str = "AI_BUSY"
+
+    def __init__(self, message: str = "AI service is currently busy", *, retry_after: int = 30) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class AiOutputInvalidError(NetSentryError):
+    """Raised when LLM output violates schema or fails validation."""
+
+    code: str = "AI_OUTPUT_INVALID"
+
+
+class ExplanationNotFoundError(NetSentryError):
+    """Raised when no saved AI explanation exists for an audit run."""
+
+    code: str = "EXPLANATION_NOT_FOUND"
+

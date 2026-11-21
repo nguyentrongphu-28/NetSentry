@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import threading
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
+from app.domain.entities.audit_result import AuditStatus
 from app.domain.entities.audit_run import AuditRunDetail, AuditRunSummary
 from app.domain.entities.device import Credentials
 from app.domain.errors import (
@@ -17,6 +19,11 @@ from app.domain.interfaces.audit_repository import AuditRepository
 from app.domain.interfaces.device_repository import DeviceRepository
 from app.services.audit_service import AuditService
 
+if TYPE_CHECKING:
+    from app.services.snapshot_service import SnapshotService
+
+logger = logging.getLogger(__name__)
+
 
 class AuditRunService:
     """Coordinates running audits, preventing concurrent runs on the same device."""
@@ -27,11 +34,13 @@ class AuditRunService:
         audit_repository: AuditRepository,
         audit_service: AuditService,
         *,
+        snapshot_service: SnapshotService | None = None,
         default_credentials: Callable[[], Credentials | None] | None = None,
     ) -> None:
         self.device_repository = device_repository
         self.audit_repository = audit_repository
         self.audit_service = audit_service
+        self.snapshot_service = snapshot_service
         self.default_credentials = default_credentials
 
         self._global_lock = threading.Lock()
@@ -69,8 +78,34 @@ class AuditRunService:
 
         try:
             target = device.to_target()
-            result = self.audit_service.audit_device(target, resolved_creds)
+            collected_config: str | None = None
+
+            def _on_config(cfg: str) -> None:
+                nonlocal collected_config
+                collected_config = cfg
+
+            result = self.audit_service.audit_device(
+                target,
+                resolved_creds,
+                on_config_collected=_on_config,
+            )
             run_id = self.audit_repository.save_run(result)
+
+            if (
+                result.status == AuditStatus.COMPLETED
+                and collected_config is not None
+                and self.snapshot_service is not None
+            ):
+                try:
+                    self.snapshot_service.create_for_run(device_id, run_id, collected_config)
+                except Exception as snap_exc:
+                    logger.warning(
+                        "Snapshot creation failed for device %s run %s: %s",
+                        device_id,
+                        run_id,
+                        type(snap_exc).__name__,
+                    )
+
             detail = self.audit_repository.get_run(run_id)
             if detail is None:
                 raise RuntimeError(

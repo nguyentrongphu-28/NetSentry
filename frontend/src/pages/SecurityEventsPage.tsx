@@ -24,6 +24,9 @@ const EVENT_TYPES = [
   "DEVICE_DELETED",
   "AUDIT_STARTED",
   "ACCESS_DENIED",
+  "SNAPSHOT_VIEWED",
+  "SNAPSHOT_DELETED",
+  "AI_EXPLAIN_REQUESTED",
 ];
 
 async function fetchEvents(

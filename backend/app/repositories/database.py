@@ -84,9 +84,31 @@ CREATE TABLE IF NOT EXISTS security_events (
     detail         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_events_time ON security_events(occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS config_snapshots (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id         TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+    run_id            INTEGER NOT NULL UNIQUE REFERENCES audit_runs(id) ON DELETE CASCADE,
+    created_at        TEXT NOT NULL,
+    content_sha256    TEXT NOT NULL,
+    size_bytes        INTEGER NOT NULL,
+    line_count        INTEGER NOT NULL,
+    redaction_version INTEGER NOT NULL,
+    file_name         TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_snapshots_device ON config_snapshots(device_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_explanations (
+    run_id          INTEGER PRIMARY KEY REFERENCES audit_runs(id) ON DELETE CASCADE,
+    created_at      TEXT NOT NULL,
+    model           TEXT NOT NULL,
+    prompt_version  INTEGER NOT NULL,
+    input_sha256    TEXT NOT NULL,
+    content_json    TEXT NOT NULL
+);
 """
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:

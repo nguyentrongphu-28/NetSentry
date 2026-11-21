@@ -17,7 +17,8 @@ export function DeviceDetailPage(): React.JSX.Element {
   const { deviceId } = useParams<{ deviceId: string }>();
   const [offset, setOffset] = useState(0);
   const limit = 20;
-  const canAudit = useCan("audit:run");
+  import { useCan } from "../auth/useCan";
+const canViewSnapshots = useCan('snapshot:view');
 
   const [isRunAuditOpen, setIsRunAuditOpen] = useState(false);
 
@@ -156,6 +157,16 @@ export function DeviceDetailPage(): React.JSX.Element {
         </div>
 
         {/* Latest Audit Card */}
+          {/* Snapshot Tab (operator+ / admin) */}
+          {useCan('snapshot:view') && (
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-100 pb-2">
+                Snapshots
+              </h2>
+              {/* Snapshot list component – will render list + diff viewer */}
+              <SnapshotList deviceId={device.device_id} />
+            </div>
+          )}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs flex flex-col justify-between">
           <div>
             <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-100 pb-3">
