@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "description": "Standardized findings question set covering all 8 CIS Cisco IOS rules for AI quality assessment",
+  "questions": [
+    {
+      "id": "Q-NET-001",
+      "rule_id": "NET-001",
+      "title": "Telnet service enabled on VTY lines",
+      "status": "FAIL",
+      "severity": "HIGH",
+      "evidence": ["line vty 0 4", "transport input telnet"],
+      "expected_focus": "Rủi ro truyền thông tin xác thực dưới dạng cleartext qua giao thức Telnet; khuyến nghị chuyển sang SSH v2."
+    },
+    {
+      "id": "Q-NET-002",
+      "rule_id": "NET-002",
+      "title": "SSH version 2 not explicitly enforced",
+      "status": "FAIL",
+      "severity": "HIGH",
+      "evidence": ["ip ssh version 1"],
+      "expected_focus": "Giao thức SSH v1 có các lỗ hổng mật mã học nghiêm trọng đã biết; cần bật tường minh 'ip ssh version 2'."
+    },
+    {
+      "id": "Q-NET-003",
+      "rule_id": "NET-003",
+      "title": "Enable secret password missing or weak algorithm used",
+      "status": "FAIL",
+      "severity": "HIGH",
+      "evidence": ["enable password cisco"],
+      "expected_focus": "Lệnh enable password dùng thuật toán băm yếu (type 7 / reversible) thay vì enable secret mã hóa mạnh (type 8/9/secret)."
+    },
+    {
+      "id": "Q-NET-004",
+      "rule_id": "NET-004",
+      "title": "Service password encryption disabled",
+      "status": "FAIL",
+      "severity": "MEDIUM",
+      "evidence": ["no service password-encryption"],
+      "expected_focus": "Các mật khẩu trong file cấu hình hiển thị dưới dạng cleartext; cần bật 'service password-encryption' để làm xáo trộn hiển thị."
+    },
+    {
+      "id": "Q-NET-005",
+      "rule_id": "NET-005",
+      "title": "VTY line exec timeout excessive or disabled",
+      "status": "FAIL",
+      "severity": "MEDIUM",
+      "evidence": ["line vty 0 4", "exec-timeout 0 0"],
+      "expected_focus": "VTY timeout bị tắt (0 0) khiến phiên quản trị không bao giờ tự ngắt khi không hoạt động; nguy cơ bị chiếm dụng phiên bỏ quên."
+    },
+    {
+      "id": "Q-NET-006",
+      "rule_id": "NET-006",
+      "title": "VTY line missing access-class ACL restriction",
+      "status": "FAIL",
+      "severity": "MEDIUM",
+      "evidence": ["line vty 0 4", "no access-class in"],
+      "expected_focus": "Cổng VTY quản trị mở rộng cho mọi nguồn địa chỉ IP; cần gán danh sách kiểm soát truy cập (access-class) để giới hạn IP quản trị."
+    },
+    {
+      "id": "Q-NET-007",
+      "rule_id": "NET-007",
+      "title": "SNMP community string active",
+      "status": "FAIL",
+      "severity": "HIGH",
+      "evidence": ["snmp-server community <REDACTED_SECRET> RO"],
+      "expected_focus": "SNMP v1/v2c gửi community string dưới dạng cleartext qua UDP; nguy cơ lộ chuỗi cộng đồng và đọc/ghi thông tin thiết bị."
+    },
+    {
+      "id": "Q-NET-008",
+      "rule_id": "NET-008",
+      "title": "Insecure HTTP server enabled",
+      "status": "FAIL",
+      "severity": "MEDIUM",
+      "evidence": ["ip http server"],
+      "expected_focus": "Dịch vụ web HTTP không mã hóa; rủi ro lộ session cookie và tài khoản quản trị mạng qua tấn công nghe lén (Man-in-the-Middle)."
+    }
+  ]
+}

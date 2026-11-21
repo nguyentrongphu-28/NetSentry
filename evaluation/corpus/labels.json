@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "files": {
+    "dev/r1_secure.cfg": {
+      "NET-001": {"status": "PASS"},
+      "NET-002": {"status": "PASS"},
+      "NET-003": {"status": "PASS"},
+      "NET-004": {"status": "PASS"},
+      "NET-005": {"status": "PASS"},
+      "NET-006": {"status": "PASS"},
+      "NET-007": {"status": "PASS"},
+      "NET-008": {"status": "PASS"}
+    },
+    "dev/r2_insecure.cfg": {
+      "NET-001": {"status": "FAIL"},
+      "NET-002": {"status": "FAIL"},
+      "NET-003": {"status": "FAIL"},
+      "NET-004": {"status": "FAIL"},
+      "NET-005": {"status": "FAIL"},
+      "NET-006": {"status": "FAIL"},
+      "NET-007": {"status": "FAIL"},
+      "NET-008": {"status": "FAIL"}
+    },
+    "dev/r3_edge_cases.cfg": {
+      "NET-001": {"status": "FAIL"},
+      "NET-002": {"status": "PASS"},
+      "NET-003": {"status": "PASS"},
+      "NET-004": {"status": "PASS"},
+      "NET-005": {"status": "FAIL"},
+      "NET-006": {"status": "PASS"},
+      "NET-007": {"status": "PASS"},
+      "NET-008": {"status": "FAIL"}
+    },
+    "dev/r4_mixed_vty.cfg": {
+      "NET-001": {"status": "FAIL"},
+      "NET-002": {"status": "PASS"},
+      "NET-003": {"status": "PASS"},
+      "NET-004": {"status": "PASS"},
+      "NET-005": {"status": "FAIL"},
+      "NET-006": {"status": "FAIL"},
+      "NET-007": {"status": "FAIL"},
+      "NET-008": {"status": "PASS"}
+    },
+    "test/r1_core.cfg": {
+      "NET-001": {"status": "FAIL"},
+      "NET-002": {"status": "PASS"},
+      "NET-003": {"status": "PASS"},
+      "NET-004": {"status": "FAIL"},
+      "NET-005": {"status": "PASS"},
+      "NET-006": {"status": "PASS"},
+      "NET-007": {"status": "FAIL"},
+      "NET-008": {"status": "PASS"}
+    },
+    "test/r2_hardened.cfg": {
+      "NET-001": {"status": "PASS"},
+      "NET-002": {"status": "PASS"},
+      "NET-003": {"status": "PASS"},
+      "NET-004": {"status": "PASS"},
+      "NET-005": {"status": "PASS"},
+      "NET-006": {"status": "PASS"},
+      "NET-007": {"status": "PASS"},
+      "NET-008": {"status": "PASS"}
+    },
+    "test/r3_insecure_vty.cfg": {
+      "NET-001": {"status": "FAIL"},
+      "NET-002": {"status": "FAIL"},
+      "NET-003": {"status": "FAIL"},
+      "NET-004": {"status": "PASS"},
+      "NET-005": {"status": "FAIL"},
+      "NET-006": {"status": "FAIL"},
+      "NET-007": {"status": "PASS"},
+      "NET-008": {"status": "PASS"}
+    },
+    "test/r4_snmp_http.cfg": {
+      "NET-001": {"status": "PASS"},
+      "NET-002": {"status": "PASS"},
+      "NET-003": {"status": "PASS"},
+      "NET-004": {"status": "PASS"},
+      "NET-005": {"status": "PASS"},
+      "NET-006": {"status": "PASS"},
+      "NET-007": {"status": "FAIL"},
+      "NET-008": {"status": "FAIL"}
+    }
+  }
+}

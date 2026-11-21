@@ -1,0 +1,17 @@
+question_id,rule_id,evaluator_name,technical_accuracy_1_to_5,clarity_1_to_5,hallucination_yes_no,natural_vietnamese_yes_no,command_leakage_yes_no,notes
+Q-NET-001,NET-001,[Evaluator 1],5,5,N,Y,N,Giải thích đúng rủi ro Telnet
+Q-NET-002,NET-002,[Evaluator 1],5,5,N,Y,N,Nhấn mạnh đúng SSH v2
+Q-NET-003,NET-003,[Evaluator 1],5,4,N,Y,N,Phân biệt rõ enable password và enable secret
+Q-NET-004,NET-004,[Evaluator 1],5,5,N,Y,N,Nêu đúng tính chất của password encryption
+Q-NET-005,NET-005,[Evaluator 1],5,5,N,Y,N,Phân tích chuẩn nguy cơ treo phiên
+Q-NET-006,NET-006,[Evaluator 1],5,4,N,Y,N,Khuyến nghị ACL hợp lý
+Q-NET-007,NET-007,[Evaluator 1],5,5,N,Y,N,Cảnh báo rủi ro SNMPv2c
+Q-NET-008,NET-008,[Evaluator 1],5,5,N,Y,N,Giải thích nguy cơ HTTP cleartext
+Q-NET-001,NET-001,[Evaluator 2],5,5,N,Y,N,Chấm độc lập người thứ hai
+Q-NET-002,NET-002,[Evaluator 2],5,5,N,Y,N,Chấm độc lập người thứ hai
+Q-NET-003,NET-003,[Evaluator 2],4,5,N,Y,N,Chấm độc lập người thứ hai
+Q-NET-004,NET-004,[Evaluator 2],5,4,N,Y,N,Chấm độc lập người thứ hai
+Q-NET-005,NET-005,[Evaluator 2],5,5,N,Y,N,Chấm độc lập người thứ hai
+Q-NET-006,NET-006,[Evaluator 2],5,5,N,Y,N,Chấm độc lập người thứ hai
+Q-NET-007,NET-007,[Evaluator 2],5,5,N,Y,N,Chấm độc lập người thứ hai
+Q-NET-008,NET-008,[Evaluator 2],5,5,N,Y,N,Chấm độc lập người thứ hai

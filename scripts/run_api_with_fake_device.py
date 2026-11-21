@@ -134,6 +134,15 @@ def main() -> None:
     # Create FastAPI app
     app = create_app(settings=settings, connector_factory=connector_factory)
 
+    # Seed initial admin user for session login
+    from app.repositories.sqlite_user_repository import SQLiteUserRepository
+    from app.security.password_hasher import Argon2PasswordHasher
+    from app.domain.entities.user import Role
+    user_repo = SQLiteUserRepository(db_path)
+    hasher = Argon2PasswordHasher()
+    dev_password = "DevAdminPassword123!"
+    user_repo.add("admin", hasher.hash(dev_password), Role.ADMIN, must_change_password=False)
+
     banner = "=" * 70
     print(banner)
     print("  NETSENTRY DEV-ONLY API SERVER (MOCK DEVICE CONNECTOR)")
@@ -143,13 +152,14 @@ def main() -> None:
     print(f"  * Host / Port      : http://{args.host}:{args.port}")
     print(f"  * Fixture loaded   : {fixture_filename} ({fixture_path})")
     print(f"  * Temp DB path     : {db_path}")
+    print(f"  * Web Session Login: admin / {dev_password}")
     print(f"  * Fallback User    : dev_admin")
     print(f"  * Fallback Pass    : DevSecretPassword123!")
     print(f"  * Generated API Key: {api_key}")
     if fail_on_cls:
         print(f"  * Fail-on Sim      : {args.fail_on} -> {fail_on_cls.__name__}")
     print(banner)
-    print("  Copy the API Key above and paste it into the Connect screen.\n")
+    print("  Log in via web UI or use the API Key in X-API-Key header.\n")
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

@@ -1,0 +1,109 @@
+schema_version: 1
+requirements:
+  S1:
+    title: "Unauthenticated access blocked on all routes (except /health and /auth/login)"
+    source: "Week 7 / Auth"
+    tests:
+      - "tests/api/test_rbac_matrix.py::TestRbacMatrix::test_unauthenticated_requests_receive_401"
+      - "tests/api/test_auth.py::test_health_check_requires_no_auth"
+      - "tests/api/test_auth.py::test_protected_routes_without_key_return_401"
+  S2:
+    title: "Role boundaries: viewer/operator/admin enforced across endpoints"
+    source: "Week 7 / RBAC"
+    tests:
+      - "tests/api/test_rbac_matrix.py::TestRbacMatrix::test_viewer_permissions"
+      - "tests/api/test_rbac_matrix.py::TestRbacMatrix::test_operator_permissions"
+      - "tests/api/test_rbac_matrix.py::TestRbacMatrix::test_admin_permissions"
+      - "tests/api/test_rbac_matrix.py::TestRbacMatrix::test_exhaustive_app_routes_traversal"
+  S3:
+    title: "CSRF protection: missing, null, or disallowed Origin blocked on state changes"
+    source: "Auth / CSRF"
+    tests:
+      - "tests/api/test_security_api.py::test_cors_headers"
+      - "tests/unit/test_config_middleware.py::TestSecurityMiddleware::test_origin_check_blocks_missing_origin_when_session_cookie_present"
+      - "tests/unit/test_config_middleware.py::TestSecurityMiddleware::test_origin_check_blocks_mismatched_origin"
+  S4:
+    title: "Brute-force protection: account lockout after failed attempts, IP rate limit"
+    source: "Auth"
+    tests:
+      - "tests/unit/test_services_auth.py::TestAuthService::test_account_lockout_after_max_failed_attempts"
+      - "tests/unit/test_services_auth.py::TestStepUpPasswordVerification::test_verify_password_failure_increments_attempts_and_locks"
+      - "tests/api/test_auth_routes.py::TestAuthRoutes::test_login_invalid_credentials_returns_401"
+  S5:
+    title: "Session management: logout revokes session, cookie cleared, idle/absolute expiry"
+    source: "Auth"
+    tests:
+      - "tests/api/test_auth_routes.py::TestAuthRoutes::test_logout_revokes_session_and_clears_cookie"
+      - "tests/unit/test_services_auth.py::TestAuthService::test_change_password_revokes_other_sessions"
+      - "tests/unit/test_sqlite_auth_repositories.py::TestSQLiteSessionRepository::test_create_and_validate_session"
+  S6:
+    title: "No credential or raw secret leakage in responses, logs, DB or events"
+    source: "All modules"
+    tests:
+      - "tests/api/test_security_api.py::test_validation_error_never_leaks_password_or_input_key"
+      - "tests/api/test_security_api.py::test_credentials_never_stored_in_db_log_or_response"
+      - "tests/api/test_security_api.py::test_internal_server_error_masks_details"
+      - "tests/unit/test_config_redactor.py::test_redactor_removes_all_sentinels"
+      - "tests/unit/test_leak_prevention.py::test_zero_secret_leakage_in_findings_and_logs"
+  S7:
+    title: "Command allowlist enforcement & Read connector rejection of all config commands"
+    source: "Week 7 / Connectors"
+    tests:
+      - "tests/unit/connectors/test_cisco_ios_connector.py::TestCiscoIOSConnectorAllowlist::test_disallowed_commands_rejected_before_session[configure terminal]"
+      - "tests/unit/test_config_writer.py::TestCiscoIOSConfigWriter::test_command_outside_allowlist_rejected_before_device_touch"
+      - "tests/unit/test_config_writer.py::TestCiscoIOSConfigWriter::test_read_connector_still_strictly_rejects_configuration_commands"
+  S8:
+    title: "Prompt injection resistance: evidence and config never treated as instructions"
+    source: "Week 7 / AI"
+    tests:
+      - "tests/unit/test_llm_layer.py::test_prompt_builder_sanitization"
+      - "tests/unit/test_llm_layer.py::test_explanation_validator"
+  S9:
+    title: "AI output validation: malformed JSON, missing fields, or fabricated rule_ids filtered"
+    source: "Week 7 / AI"
+    tests:
+      - "tests/unit/test_llm_layer.py::test_explanation_validator"
+  S10:
+    title: "Invalid remediation proposals rejected (ineligible rule, non-FAIL, injected commands)"
+    source: "Week 7 / Remediation"
+    tests:
+      - "tests/unit/test_remediation_domain.py::TestCommandPolicyAndTemplates::test_ineligible_rules_raise_not_eligible"
+      - "tests/unit/test_remediation_domain.py::TestCommandPolicyAndTemplates::test_validate_commands_rejects_injection_attempts"
+      - "tests/unit/test_remediation_service.py::TestRemediationServicePropose::test_propose_ineligible_rule"
+      - "tests/unit/test_remediation_service.py::TestRemediationServicePropose::test_propose_finding_not_failing"
+  S11:
+    title: "Plan hash verification detects tampering or modified templates (PLAN_HASH_MISMATCH)"
+    source: "Remediation D"
+    tests:
+      - "tests/unit/test_remediation_domain.py::TestPlanHash::test_plan_hash_changes_on_any_field_change"
+      - "tests/unit/test_remediation_service.py::TestRemediationServiceApply::test_apply_plan_hash_mismatch_raises_error"
+  S12:
+    title: "Approval controls: distinct approver, step-up password re-auth, TTL expiry, stale check"
+    source: "Remediation C"
+    tests:
+      - "tests/unit/test_remediation_service.py::TestRemediationServiceApprove::test_self_approval_blocked_when_required"
+      - "tests/unit/test_remediation_service.py::TestRemediationServiceApprove::test_approve_wrong_password_raises_reauth_failed"
+      - "tests/unit/test_remediation_service.py::TestRemediationServiceApprove::test_approve_plan_expired_by_ttl"
+      - "tests/unit/test_remediation_service.py::TestRemediationServiceApprove::test_approve_invalidated_when_newer_audit_exists"
+  S13:
+    title: "Public mode safety: server rejects dangerous config, disables /docs, blocks raw configs and execution"
+    source: "Tunnel / Config"
+    tests:
+      - "tests/unit/test_config_middleware.py::TestPublicModeConfigInvariants::test_public_mode_disallows_auth_disabled"
+      - "tests/unit/test_config_middleware.py::TestPublicModeConfigInvariants::test_public_mode_disallows_empty_allowed_networks"
+      - "tests/unit/test_config_middleware.py::TestPublicModeConfigInvariants::test_public_mode_forces_invariants"
+      - "tests/unit/test_remediation_architecture.py::test_public_mode_forces_require_distinct_approver"
+      - "tests/api/test_baselines_api.py::test_public_mode_drift_detail_blocked"
+  S14:
+    title: "Path traversal and SSRF protection (allowed networks whitelist)"
+    source: "Persistence / Network"
+    tests:
+      - "tests/api/test_devices_api.py::test_create_device_invalid_device_id[../etc/passwd]"
+      - "tests/unit/services/test_device_service.py::TestAllowedNetworksSSRF::test_ip_outside_allowed_network_raises_error"
+  S15:
+    title: "Clean architecture isolation: AI and Remediation packages have no SSH / connector imports"
+    source: "Week 7 (B)"
+    tests:
+      - "tests/unit/test_architecture_imports.py::test_netmiko_and_paramiko_only_in_connectors"
+      - "tests/unit/test_remediation_architecture.py::test_remediation_package_clean_architecture_ast"
+      - "tests/unit/test_remediation_architecture.py::test_writer_and_connector_separation"

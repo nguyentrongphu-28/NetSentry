@@ -21,6 +21,7 @@ from app.domain.errors import (
     InvalidTransitionError,
     NotEligibleError,
     PlanExpiredError,
+    PlanHashMismatchError,
     PlanNotFoundError,
     PlanStaleError,
     ReauthFailedError,
@@ -510,3 +511,42 @@ class TestRemediationServiceRejectAndCancel:
             actor_role=Role.ADMIN,
         )
         assert cancelled.status == PlanStatus.CANCELLED
+
+
+class TestRemediationServiceApply:
+    def test_apply_plan_hash_mismatch_raises_error(self, service_env) -> None:
+        svc: RemediationService = service_env["service"]
+        # Enable execution mode on service for apply testing
+        svc._execute_mode = "dry_run"
+
+        plan = svc.propose(
+            run_id=1,
+            rule_id="NET-008",
+            proposer_username="operator1",
+            proposer_user_id=service_env["op_id"],
+        )
+        approved = svc.approve(
+            plan_id=plan.id,
+            approver_username="admin2",
+            approver_user_id=service_env["admin2_id"],
+            approver_role=Role.ADMIN,
+            password="Admin2Pass123!",
+        )
+
+        # Tamper with approved_plan_hash in DB
+        with service_env["conn"]:
+            service_env["conn"].execute(
+                "UPDATE remediation_plans SET approved_plan_hash = 'tampered_hash_12345' WHERE id = ?",
+                (plan.id,),
+            )
+
+        with pytest.raises(PlanHashMismatchError):
+            svc.apply(
+                plan_id=plan.id,
+                actor_username="admin2",
+                actor_user_id=service_env["admin2_id"],
+                actor_role=Role.ADMIN,
+                confirm_device_id="Router-Core-01",
+                password="Admin2Pass123!",
+            )
+
