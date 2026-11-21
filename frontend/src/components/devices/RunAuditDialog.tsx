@@ -6,6 +6,7 @@ import { Spinner } from "../ui/Spinner";
 import { STRINGS } from "../../i18n/strings";
 import { DeviceWithLatestAuditOut, AuditRequestPayload } from "../../types/api";
 import { useRunAudit } from "../../hooks/useRunAudit";
+import { useAuth } from "../../auth/AuthProvider";
 import { ApiClientError } from "../../services/apiClient";
 
 export interface RunAuditDialogProps {
@@ -23,6 +24,8 @@ export function RunAuditDialog({
 }: RunAuditDialogProps): React.JSX.Element {
   const navigate = useNavigate();
   const runMutation = useRunAudit();
+  const { capabilities } = useAuth();
+  const allowBodyCredentials = capabilities?.body_credentials !== false;
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -50,6 +53,7 @@ export function RunAuditDialog({
   };
 
   const validate = (): boolean => {
+    if (!allowBodyCredentials) return true;
     const errors: Record<string, string> = {};
     if (!username.trim()) {
       errors.username = "Vui lòng nhập tên đăng nhập SSH.";
@@ -72,13 +76,15 @@ export function RunAuditDialog({
 
     isClosedByUserRef.current = false;
 
-    const payload: AuditRequestPayload = {
-      credentials: {
-        username: username.trim(),
-        password,
-        ...(enableSecret ? { enable_secret: enableSecret } : {}),
-      },
-    };
+    const payload: AuditRequestPayload = allowBodyCredentials
+      ? {
+          credentials: {
+            username: username.trim(),
+            password,
+            ...(enableSecret ? { enable_secret: enableSecret } : {}),
+          },
+        }
+      : {};
 
     try {
       const result = await runMutation.mutateAsync({
@@ -180,78 +186,86 @@ export function RunAuditDialog({
           </div>
         )}
 
-        {/* Username */}
-        <div>
-          <label htmlFor="audit-username-input" className="block text-xs font-semibold text-gray-700">
-            {STRINGS.runAuditDialog.usernameLabel} *
-          </label>
-          <input
-            id="audit-username-input"
-            type="text"
-            autoComplete="off"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            disabled={isPending}
-            placeholder={STRINGS.runAuditDialog.usernamePlaceholder}
-            className={`mt-1 block w-full px-3 py-2 text-sm border rounded-md shadow-xs focus:outline-none focus:ring-1 ${
-              fieldErrors.username
-                ? "border-rose-300 focus:ring-rose-500 focus:border-rose-500"
-                : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
-            }`}
-          />
-          {fieldErrors.username && (
-            <p className="mt-1 text-xs text-rose-600">{fieldErrors.username}</p>
-          )}
-        </div>
+        {allowBodyCredentials ? (
+          <>
+            {/* Username */}
+            <div>
+              <label htmlFor="audit-username-input" className="block text-xs font-semibold text-gray-700">
+                {STRINGS.runAuditDialog.usernameLabel} *
+              </label>
+              <input
+                id="audit-username-input"
+                type="text"
+                autoComplete="off"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isPending}
+                placeholder={STRINGS.runAuditDialog.usernamePlaceholder}
+                className={`mt-1 block w-full px-3 py-2 text-sm border rounded-md shadow-xs focus:outline-none focus:ring-1 ${
+                  fieldErrors.username
+                    ? "border-rose-300 focus:ring-rose-500 focus:border-rose-500"
+                    : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
+                }`}
+              />
+              {fieldErrors.username && (
+                <p className="mt-1 text-xs text-rose-600">{fieldErrors.username}</p>
+              )}
+            </div>
 
-        {/* Password */}
-        <div>
-          <label htmlFor="audit-password-input" className="block text-xs font-semibold text-gray-700">
-            {STRINGS.runAuditDialog.passwordLabel} *
-          </label>
-          <input
-            id="audit-password-input"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={isPending}
-            placeholder={STRINGS.runAuditDialog.passwordPlaceholder}
-            className={`mt-1 block w-full px-3 py-2 text-sm border rounded-md shadow-xs focus:outline-none focus:ring-1 ${
-              fieldErrors.password
-                ? "border-rose-300 focus:ring-rose-500 focus:border-rose-500"
-                : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
-            }`}
-          />
-          {fieldErrors.password && (
-            <p className="mt-1 text-xs text-rose-600">{fieldErrors.password}</p>
-          )}
-        </div>
+            {/* Password */}
+            <div>
+              <label htmlFor="audit-password-input" className="block text-xs font-semibold text-gray-700">
+                {STRINGS.runAuditDialog.passwordLabel} *
+              </label>
+              <input
+                id="audit-password-input"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isPending}
+                placeholder={STRINGS.runAuditDialog.passwordPlaceholder}
+                className={`mt-1 block w-full px-3 py-2 text-sm border rounded-md shadow-xs focus:outline-none focus:ring-1 ${
+                  fieldErrors.password
+                    ? "border-rose-300 focus:ring-rose-500 focus:border-rose-500"
+                    : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
+                }`}
+              />
+              {fieldErrors.password && (
+                <p className="mt-1 text-xs text-rose-600">{fieldErrors.password}</p>
+              )}
+            </div>
 
-        {/* Enable Secret */}
-        <div>
-          <label
-            htmlFor="audit-enable-secret-input"
-            className="block text-xs font-semibold text-gray-700"
-          >
-            {STRINGS.runAuditDialog.enableSecretLabel}
-          </label>
-          <input
-            id="audit-enable-secret-input"
-            type="password"
-            autoComplete="new-password"
-            value={enableSecret}
-            onChange={(e) => setEnableSecret(e.target.value)}
-            disabled={isPending}
-            placeholder={STRINGS.runAuditDialog.enableSecretPlaceholder}
-            className="mt-1 block w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          {fieldErrors.enable_secret && (
-            <p className="mt-1 text-xs text-rose-600">{fieldErrors.enable_secret}</p>
-          )}
-        </div>
+            {/* Enable Secret */}
+            <div>
+              <label
+                htmlFor="audit-enable-secret-input"
+                className="block text-xs font-semibold text-gray-700"
+              >
+                {STRINGS.runAuditDialog.enableSecretLabel}
+              </label>
+              <input
+                id="audit-enable-secret-input"
+                type="password"
+                autoComplete="new-password"
+                value={enableSecret}
+                onChange={(e) => setEnableSecret(e.target.value)}
+                disabled={isPending}
+                placeholder={STRINGS.runAuditDialog.enableSecretPlaceholder}
+                className="mt-1 block w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              {fieldErrors.enable_secret && (
+                <p className="mt-1 text-xs text-rose-600">{fieldErrors.enable_secret}</p>
+              )}
+            </div>
 
-        <p className="text-xs text-gray-500">{STRINGS.runAuditDialog.securityNote}</p>
+            <p className="text-xs text-gray-500">{STRINGS.runAuditDialog.securityNote}</p>
+          </>
+        ) : (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+            {STRINGS.runAuditDialog.serverCredentialsNotice}
+          </div>
+        )}
       </form>
     </Modal>
   );

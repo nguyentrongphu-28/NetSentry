@@ -11,11 +11,13 @@ import { ErrorBanner } from "../components/ui/ErrorBanner";
 import { StatusBadge } from "../components/audits/StatusBadge";
 import { formatDateTime } from "../utils/format";
 import { STRINGS } from "../i18n/strings";
+import { useCan } from "../auth/useCan";
 
 export function DeviceDetailPage(): React.JSX.Element {
   const { deviceId } = useParams<{ deviceId: string }>();
   const [offset, setOffset] = useState(0);
   const limit = 20;
+  const canAudit = useCan("audit:run");
 
   const [isRunAuditOpen, setIsRunAuditOpen] = useState(false);
 
@@ -94,15 +96,17 @@ export function DeviceDetailPage(): React.JSX.Element {
           )}
         </div>
 
-        <div>
-          <Button
-            variant="primary"
-            icon={<Play className="w-4 h-4 fill-current" />}
-            onClick={() => setIsRunAuditOpen(true)}
-          >
-            {STRINGS.deviceDetail.runAuditBtn}
-          </Button>
-        </div>
+        {canAudit && (
+          <div>
+            <Button
+              variant="primary"
+              icon={<Play className="w-4 h-4 fill-current" />}
+              onClick={() => setIsRunAuditOpen(true)}
+            >
+              {STRINGS.deviceDetail.runAuditBtn}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Device Info & Latest Audit Summary Card */}

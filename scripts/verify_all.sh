@@ -12,7 +12,7 @@ echo "=== Frontend typecheck ==="
 (cd frontend && npm run typecheck)
 
 echo "=== Frontend tests ==="
-(cd frontend && npm test -- --runInBand)
+(cd frontend && npm test)
 
 echo "=== Build frontend ==="
 (cd frontend && npm run build)

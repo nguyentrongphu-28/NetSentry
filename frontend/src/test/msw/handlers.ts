@@ -15,20 +15,166 @@ export const handlers = [
     return HttpResponse.json(mockHealth);
   }),
 
-  // List devices
-  http.get("/api/v1/devices", ({ request }) => {
-    const apiKey = request.headers.get("X-API-Key");
-    if (!apiKey || apiKey === "invalid-key") {
+  // Auth Me
+  http.get("/api/v1/auth/me", () => {
+    return HttpResponse.json({
+      user: {
+        id: 1,
+        username: "admin",
+        role: "admin",
+        must_change_password: false,
+      },
+      capabilities: {
+        body_credentials: true,
+      },
+    });
+  }),
+
+  // Auth Login
+  http.post("/api/v1/auth/login", async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as {
+      username?: string;
+      password?: string;
+    };
+    if (body.username === "locked_user") {
       return HttpResponse.json(
         {
           error: {
-            code: "UNAUTHORIZED",
-            message: "Invalid or missing API key.",
+            code: "RATE_LIMITED",
+            message: "Tài khoản tạm thời bị khóa. Vui lòng thử lại sau.",
+          },
+        },
+        { status: 429 }
+      );
+    }
+    if (body.username !== "admin" || body.password !== "Admin@Pass1234") {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "INVALID_CREDENTIALS",
+            message: "Sai tên đăng nhập hoặc mật khẩu.",
           },
         },
         { status: 401 }
       );
     }
+    return HttpResponse.json({
+      user: {
+        id: 1,
+        username: "admin",
+        role: "admin",
+        must_change_password: false,
+      },
+    });
+  }),
+
+  // Auth Logout
+  http.post("/api/v1/auth/logout", () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Auth Change Password
+  http.post("/api/v1/auth/change-password", () => {
+    return HttpResponse.json({ status: "ok" });
+  }),
+
+  // List Users
+  http.get("/api/v1/users", () => {
+    return HttpResponse.json([
+      {
+        id: 1,
+        username: "admin",
+        role: "admin",
+        is_active: true,
+        must_change_password: false,
+        created_at: "2026-01-01T00:00:00Z",
+        last_login_at: "2026-01-01T01:00:00Z",
+      },
+      {
+        id: 2,
+        username: "operator1",
+        role: "operator",
+        is_active: true,
+        must_change_password: false,
+        created_at: "2026-01-01T00:00:00Z",
+        last_login_at: null,
+      },
+    ]);
+  }),
+
+  // Create User
+  http.post("/api/v1/users", async ({ request }) => {
+    const body = (await request.json()) as { username: string; role: string };
+    if (body.username === "existing_user") {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "USER_EXISTS",
+            message: "User exists.",
+          },
+        },
+        { status: 409 }
+      );
+    }
+    return HttpResponse.json(
+      {
+        id: 3,
+        username: body.username,
+        role: body.role,
+        is_active: true,
+        must_change_password: true,
+        created_at: "2026-01-02T00:00:00Z",
+      },
+      { status: 201 }
+    );
+  }),
+
+  // Update User
+  http.patch("/api/v1/users/:userId", async ({ params, request }) => {
+    const body = (await request.json()) as { role?: string; is_active?: boolean };
+    if (params.userId === "1" && (body.role === "viewer" || body.is_active === false)) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "LAST_ADMIN",
+            message: "Không thể hạ quyền hoặc vô hiệu hóa admin cuối cùng.",
+          },
+        },
+        { status: 409 }
+      );
+    }
+    return HttpResponse.json({
+      id: Number(params.userId),
+      username: "updated_user",
+      role: body.role || "operator",
+      is_active: body.is_active ?? true,
+      must_change_password: false,
+      created_at: "2026-01-01T00:00:00Z",
+    });
+  }),
+
+  // Reset Password
+  http.post("/api/v1/users/:userId/reset-password", () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Security Events
+  http.get("/api/v1/security-events", () => {
+    return HttpResponse.json([
+      {
+        id: 1,
+        occurred_at: "2026-01-01T00:00:00Z",
+        event_type: "LOGIN_SUCCESS",
+        actor_username: "admin",
+        client_ip: "127.0.0.1",
+        target: null,
+        detail: null,
+      },
+    ]);
+  }),
+
+  // List devices
+  http.get("/api/v1/devices", () => {
     return HttpResponse.json(mockDeviceList);
   }),
 

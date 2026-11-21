@@ -113,3 +113,45 @@ export interface AuditRunListOut {
   limit: number;
   offset: number;
 }
+
+// ---------------------------------------------------------------------------
+// Auth, RBAC & Users Types
+// ---------------------------------------------------------------------------
+
+export type UserRole = "admin" | "operator" | "viewer";
+
+export interface UserSummary {
+  id: number;
+  username: string;
+  role: UserRole;
+  must_change_password: boolean;
+}
+
+export interface Capabilities {
+  body_credentials: boolean;
+}
+
+export interface AuthMeResponse {
+  user: UserSummary;
+  capabilities: Capabilities;
+}
+
+export interface UserRecord {
+  id: number;
+  username: string;
+  role: UserRole;
+  is_active: boolean;
+  must_change_password: boolean;
+  created_at: string;
+  last_login_at?: string | null;
+}
+
+export interface SecurityEventRecord {
+  id: number;
+  occurred_at: string;
+  event_type: string;
+  actor_username?: string | null;
+  client_ip?: string | null;
+  target?: string | null;
+  detail?: string | null;
+}

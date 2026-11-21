@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RunAuditDialog } from "./RunAuditDialog";
 import { mockDevice1, mockAuditRunDetail } from "../../test/fixtures";
 import { server } from "../../test/msw/server";
+import { renderWithProviders } from "../../test/renderWithProviders";
 import { http, HttpResponse } from "msw";
 import { STRINGS } from "../../i18n/strings";
 
@@ -18,14 +17,7 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-function renderDialog(props = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
+async function renderDialog(props = {}) {
   const defaultProps = {
     device: mockDevice1,
     isOpen: true,
@@ -33,18 +25,11 @@ function renderDialog(props = {}) {
     onAuditCompletedInBackground: vi.fn(),
     ...props,
   };
-
-  return {
-    queryClient,
-    ...render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <RunAuditDialog {...defaultProps} />
-        </MemoryRouter>
-      </QueryClientProvider>
-    ),
-    props: defaultProps,
-  };
+  const result = await renderWithProviders(<RunAuditDialog {...defaultProps} />, {
+    renderAs: "operator",
+    bodyCredentials: true,
+  });
+  return { ...result, props: defaultProps };
 }
 
 describe("RunAuditDialog (Section 7.5)", () => {
@@ -53,12 +38,11 @@ describe("RunAuditDialog (Section 7.5)", () => {
     server.resetHandlers();
     sessionStorage.clear();
     localStorage.clear();
-    sessionStorage.setItem("netsentry.apiKey", "valid-key");
   });
 
   it("requires username and password fields on submit", async () => {
     const user = userEvent.setup();
-    renderDialog();
+    await renderDialog();
 
     expect(screen.getByText("Router-Core-01")).toBeInTheDocument();
 
@@ -71,7 +55,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
 
   it("submits manual credentials and navigates to audit detail on 201 COMPLETED", async () => {
     const user = userEvent.setup();
-    renderDialog();
+    await renderDialog();
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -90,7 +74,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
   it("navigates to audit detail on 201 FAILED run as well", async () => {
     const user = userEvent.setup();
     const failedDevice = { ...mockDevice1, device_id: "failed-device" };
-    renderDialog({ device: failedDevice });
+    await renderDialog({ device: failedDevice });
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -122,7 +106,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
     );
 
     const user = userEvent.setup();
-    renderDialog();
+    await renderDialog();
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -161,7 +145,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
     );
 
     const user = userEvent.setup();
-    renderDialog();
+    await renderDialog();
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -202,7 +186,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    renderDialog({ onClose, onAuditCompletedInBackground });
+    await renderDialog({ onClose, onAuditCompletedInBackground });
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -230,7 +214,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
   it("displays server error 409 AUDIT_ALREADY_RUNNING", async () => {
     const user = userEvent.setup();
     const runningDevice = { ...mockDevice1, device_id: "running-device" };
-    renderDialog({ device: runningDevice });
+    await renderDialog({ device: runningDevice });
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -248,7 +232,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
   it("displays server error 404 DEVICE_NOT_FOUND", async () => {
     const user = userEvent.setup();
     const missingDevice = { ...mockDevice1, device_id: "non-existent" };
-    renderDialog({ device: missingDevice });
+    await renderDialog({ device: missingDevice });
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -283,7 +267,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
     );
 
     const user = userEvent.setup();
-    renderDialog();
+    await renderDialog();
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -313,7 +297,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
     );
 
     const user = userEvent.setup();
-    renderDialog();
+    await renderDialog();
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);
@@ -335,7 +319,7 @@ describe("RunAuditDialog (Section 7.5)", () => {
     const consoleErrorSpy = vi.spyOn(console, "error");
 
     const onClose = vi.fn();
-    const { unmount } = renderDialog({ onClose });
+    const { unmount } = await renderDialog({ onClose });
 
     const usernameInput = screen.getByLabelText(/tên đăng nhập ssh/i);
     const passwordInput = screen.getByLabelText(/mật khẩu ssh \*/i);

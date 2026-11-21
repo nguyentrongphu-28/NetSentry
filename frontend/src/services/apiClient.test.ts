@@ -5,44 +5,26 @@ import {
   apiFetch,
   ApiClientError,
   setUnauthorizedHandler,
-  API_KEY_STORAGE_KEY,
 } from "./apiClient";
 
 describe("apiClient", () => {
   beforeEach(() => {
-    sessionStorage.clear();
     setUnauthorizedHandler(null);
   });
 
-  it("sends X-API-Key header when key exists in sessionStorage", async () => {
-    sessionStorage.setItem(API_KEY_STORAGE_KEY, "test-valid-key");
-    let receivedHeader: string | null = null;
+  it("sends request with credentials same-origin", async () => {
+    let receivedCredentials: RequestCredentials | undefined;
 
     server.use(
       http.get("/api/v1/test", ({ request }) => {
-        receivedHeader = request.headers.get("X-API-Key");
+        receivedCredentials = request.credentials;
         return HttpResponse.json({ success: true });
       })
     );
 
     const result = await apiFetch<{ success: boolean }>("/api/v1/test");
     expect(result).toEqual({ success: true });
-    expect(receivedHeader).toBe("test-valid-key");
-  });
-
-  it("does not send X-API-Key header for /health", async () => {
-    sessionStorage.setItem(API_KEY_STORAGE_KEY, "test-secret-key");
-    let receivedHeader: string | null = null;
-
-    server.use(
-      http.get("/health", ({ request }) => {
-        receivedHeader = request.headers.get("X-API-Key");
-        return HttpResponse.json({ status: "ok" });
-      })
-    );
-
-    await apiFetch("/health");
-    expect(receivedHeader).toBeNull();
+    expect(receivedCredentials).toBe("same-origin");
   });
 
   it("parses API error format { error: { code, message, details } }", async () => {

@@ -27,23 +27,10 @@ export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
 }
 
-export const API_KEY_STORAGE_KEY = "netsentry.apiKey";
-
-export function getStoredApiKey(): string | null {
-  try {
-    return sessionStorage.getItem(API_KEY_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
 export async function apiFetch<T>(
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const isHealth = path === "/health" || path.startsWith("/health?");
-  const skipAuth = options.skipAuth || isHealth;
-
   // Determine timeout: 120s for audit run, 15s otherwise
   const isAuditRun = path.includes("/audit") && options.method === "POST";
   const timeoutMs = options.timeoutMs ?? (isAuditRun ? 120000 : 15000);
@@ -54,12 +41,6 @@ export async function apiFetch<T>(
   }, timeoutMs);
 
   const headers = new Headers(options.headers || {});
-  if (!skipAuth) {
-    const key = getStoredApiKey();
-    if (key) {
-      headers.set("X-API-Key", key);
-    }
-  }
 
   // Ensure JSON content-type if body is provided and not already set
   if (options.body && typeof options.body === "string" && !headers.has("Content-Type")) {
@@ -69,6 +50,7 @@ export async function apiFetch<T>(
   try {
     const response = await fetch(path, {
       ...options,
+      credentials: "same-origin",
       headers,
       signal: controller.signal,
     });
@@ -89,7 +71,7 @@ export async function apiFetch<T>(
       throw new ApiClientError(
         401,
         errPayload?.error.code || "UNAUTHORIZED",
-        errPayload?.error.message || "Khóa API không hợp lệ hoặc đã hết hiệu lực."
+        errPayload?.error.message || "Phiên đăng nhập đã hết hạn hoặc không hợp lệ."
       );
     }
 

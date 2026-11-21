@@ -6,6 +6,7 @@ import { STRINGS } from "../../i18n/strings";
 import { formatDateTime, formatRelativeTime } from "../../utils/format";
 import { StatusBadge } from "../audits/StatusBadge";
 import { Button } from "../ui/Button";
+import { useCan } from "../../auth/useCan";
 
 export interface DeviceTableProps {
   devices: DeviceWithLatestAuditOut[];
@@ -18,6 +19,9 @@ export function DeviceTable({
   onRunAudit,
   onDeleteDevice,
 }: DeviceTableProps): React.JSX.Element {
+  const canAudit = useCan("audit:run");
+  const canDelete = useCan("device:delete");
+
   return (
     <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm bg-white">
       <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
@@ -122,22 +126,26 @@ export function DeviceTable({
 
                 {/* Actions */}
                 <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Play className="w-3.5 h-3.5 text-indigo-600" />}
-                    onClick={() => onRunAudit(device)}
-                  >
-                    {STRINGS.devicesTable.actionAudit}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-400 hover:text-rose-600"
-                    icon={<Trash2 className="w-3.5 h-3.5" />}
-                    onClick={() => onDeleteDevice(device)}
-                    aria-label={`Xóa ${device.device_id}`}
-                  />
+                  {canAudit && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Play className="w-3.5 h-3.5 text-indigo-600" />}
+                      onClick={() => onRunAudit(device)}
+                    >
+                      {STRINGS.devicesTable.actionAudit}
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-400 hover:text-rose-600"
+                      icon={<Trash2 className="w-3.5 h-3.5" />}
+                      onClick={() => onDeleteDevice(device)}
+                      aria-label={`Xóa ${device.device_id}`}
+                    />
+                  )}
                 </td>
               </tr>
             );

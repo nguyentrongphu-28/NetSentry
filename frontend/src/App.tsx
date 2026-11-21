@@ -1,47 +1,74 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ApiKeyProvider, useApiKey } from "./hooks/useApiKey";
+import { AuthProvider } from "./auth/AuthProvider";
+import { RequireAuth } from "./auth/RequireAuth";
+import { RequireRole } from "./auth/RequireRole";
 import { AppShell } from "./components/layout/AppShell";
-import { ConnectPage } from "./pages/ConnectPage";
+import { LoginPage } from "./pages/LoginPage";
+import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { DevicesPage } from "./pages/DevicesPage";
 import { DeviceDetailPage } from "./pages/DeviceDetailPage";
 import { AuditRunPage } from "./pages/AuditRunPage";
+import { UsersPage } from "./pages/UsersPage";
+import { SecurityEventsPage } from "./pages/SecurityEventsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: true,
-      staleTime: 10000,
+export function createQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: 1,
+        refetchOnWindowFocus: true,
+        staleTime: 10000,
+      },
     },
-  },
-});
+  });
+}
 
 function ProtectedLayout(): React.JSX.Element {
-  const { isAuthenticated } = useApiKey();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/connect" replace />;
-  }
-
   return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <RequireAuth>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </RequireAuth>
   );
 }
 
 export function AppRoutes(): React.JSX.Element {
   return (
     <Routes>
-      <Route path="/connect" element={<ConnectPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/change-password"
+        element={
+          <RequireAuth>
+            <ChangePasswordPage />
+          </RequireAuth>
+        }
+      />
 
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<DevicesPage />} />
         <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
         <Route path="/audits/:runId" element={<AuditRunPage />} />
+        <Route
+          path="/users"
+          element={
+            <RequireRole roles={["admin"]}>
+              <UsersPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/security-events"
+          element={
+            <RequireRole roles={["admin"]}>
+              <SecurityEventsPage />
+            </RequireRole>
+          }
+        />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />
@@ -50,13 +77,15 @@ export function AppRoutes(): React.JSX.Element {
 }
 
 export function App(): React.JSX.Element {
+  const [client] = React.useState(() => createQueryClient());
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <ApiKeyProvider>
+    <QueryClientProvider client={client}>
+      <AuthProvider>
         <BrowserRouter>
           <AppRoutes />
         </BrowserRouter>
-      </ApiKeyProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

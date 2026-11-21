@@ -13,9 +13,11 @@ import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
 import { EmptyState } from "../components/ui/EmptyState";
 import { ErrorBanner } from "../components/ui/ErrorBanner";
+import { useCan } from "../auth/useCan";
 
 export function DevicesPage(): React.JSX.Element {
   const { data, isLoading, isError, error, refetch } = useDevices();
+  const canCreate = useCan("device:create");
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<DeviceWithLatestAuditOut | null>(null);
@@ -37,15 +39,17 @@ export function DevicesPage(): React.JSX.Element {
           </h1>
           <p className="mt-1 text-sm text-gray-500">{STRINGS.dashboard.subtitle}</p>
         </div>
-        <div>
-          <Button
-            variant="primary"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => setIsAddOpen(true)}
-          >
-            {STRINGS.dashboard.addDevice}
-          </Button>
-        </div>
+        {canCreate && (
+          <div>
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => setIsAddOpen(true)}
+            >
+              {STRINGS.dashboard.addDevice}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Background completed notice */}
@@ -94,8 +98,8 @@ export function DevicesPage(): React.JSX.Element {
             <EmptyState
               title={STRINGS.dashboard.emptyTitle}
               description={STRINGS.dashboard.emptyDescription}
-              actionText={STRINGS.dashboard.emptyAction}
-              onAction={() => setIsAddOpen(true)}
+              actionText={canCreate ? STRINGS.dashboard.emptyAction : undefined}
+              onAction={canCreate ? () => setIsAddOpen(true) : undefined}
             />
           ) : (
             <DeviceTable

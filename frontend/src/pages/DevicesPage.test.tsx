@@ -1,41 +1,21 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
+import { screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/msw/server";
+import { renderWithProviders } from "../test/renderWithProviders";
 import { DevicesPage } from "./DevicesPage";
 
-function renderDevicesPage(): ReturnType<typeof render> {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-      mutations: {
-        retry: false,
-      },
-    },
-  });
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <DevicesPage />
-      </MemoryRouter>
-    </QueryClientProvider>
-  );
+function renderDevicesPage() {
+  return renderWithProviders(<DevicesPage />, { route: "/", renderAs: "admin" });
 }
 
 describe("DevicesPage and Dashboard Features (Section 7.3 - 7.4)", () => {
   beforeEach(() => {
     server.resetHandlers();
-    sessionStorage.setItem("netsentry.apiKey", "valid-test-key");
   });
-
   it("calculates and displays summary tiles correctly from sample devices", async () => {
-    renderDevicesPage();
+    await renderDevicesPage();
 
     // Wait for data to load
     expect(await screen.findByText("Router-Core-01")).toBeInTheDocument();
@@ -61,7 +41,7 @@ describe("DevicesPage and Dashboard Features (Section 7.3 - 7.4)", () => {
       })
     );
 
-    renderDevicesPage();
+    await renderDevicesPage();
     expect(await screen.findByText("Chưa có thiết bị nào")).toBeInTheDocument();
     expect(screen.getByText("Thêm thiết bị mới")).toBeInTheDocument();
   });
@@ -73,14 +53,14 @@ describe("DevicesPage and Dashboard Features (Section 7.3 - 7.4)", () => {
       })
     );
 
-    renderDevicesPage();
+    await renderDevicesPage();
     expect(await screen.findByText(/không thể tải danh sách thiết bị/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /thử lại/i })).toBeInTheDocument();
   });
 
   it("validates client fields and creates new device successfully", async () => {
   const user = userEvent.setup();
-  renderDevicesPage();
+  await renderDevicesPage();
 
   await screen.findByText("Router-Core-01");
 
@@ -116,7 +96,7 @@ describe("DevicesPage and Dashboard Features (Section 7.3 - 7.4)", () => {
 
   it("displays server error 409 DEVICE_EXISTS next to device_id field", async () => {
     const user = userEvent.setup();
-    renderDevicesPage();
+    await renderDevicesPage();
 
     await screen.findByText("Router-Core-01");
 
@@ -144,7 +124,7 @@ describe("DevicesPage and Dashboard Features (Section 7.3 - 7.4)", () => {
       })
     );
 
-    renderDevicesPage();
+    await renderDevicesPage();
     expect(screen.getByText("Đang tải danh sách thiết bị...")).toBeInTheDocument();
   });
 
@@ -167,7 +147,7 @@ describe("DevicesPage and Dashboard Features (Section 7.3 - 7.4)", () => {
     );
 
     const user = userEvent.setup();
-    renderDevicesPage();
+    await renderDevicesPage();
 
     await screen.findByText("Router-Core-01");
 
@@ -186,10 +166,28 @@ describe("DevicesPage and Dashboard Features (Section 7.3 - 7.4)", () => {
       await within(dialog).findByText("Địa chỉ IP không thể phân giải.")
     ).toBeInTheDocument();
   });
+it("hides write actions from a viewer", async () => {
+  await renderWithProviders(<DevicesPage />, { route: "/", renderAs: "viewer" });
+  await screen.findByText("Router-Core-01");
+  expect(screen.queryByRole("button", { name: "Thêm thiết bị" })).not.toBeInTheDocument();
+});
 
+it("lets an operator add devices but not delete them", async () => {
+  await renderWithProviders(<DevicesPage />, { route: "/", renderAs: "operator" });
+  await screen.findByText("Router-Core-01");
+  expect(screen.getByRole("button", { name: "Thêm thiết bị" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /xóa/i })).not.toBeInTheDocument();
+});
+
+it("lets an admin add and delete devices", async () => {
+  await renderWithProviders(<DevicesPage />, { route: "/", renderAs: "admin" });
+  await screen.findByText("Router-Core-01");
+  expect(screen.getByRole("button", { name: "Thêm thiết bị" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Xóa Router-Core-01")).toBeInTheDocument();
+});
   it("opens delete dialog and deletes device successfully", async () => {
     const user = userEvent.setup();
-    renderDevicesPage();
+    await renderDevicesPage();
 
     await screen.findByText("Router-Core-01");
 

@@ -1,40 +1,29 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Route, Routes } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/msw/server";
+import { renderWithProviders } from "../test/renderWithProviders";
 import { DeviceDetailPage } from "./DeviceDetailPage";
 import { mockAuditSummaryCompleted } from "../test/fixtures";
 
 function renderDeviceDetailPage(deviceId = "Router-Core-01") {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/devices/${deviceId}`]}>
-        <Routes>
-          <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>
+  return renderWithProviders(
+    <Routes>
+      <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
+    </Routes>,
+    { route: `/devices/${deviceId}`, renderAs: "admin" },
   );
 }
 
 describe("DeviceDetailPage and AuditHistoryTable Features (Section 7.7)", () => {
   beforeEach(() => {
     server.resetHandlers();
-    sessionStorage.clear();
-    sessionStorage.setItem("netsentry.apiKey", "test-key");
   });
 
   it("renders device details and latest audit summary correctly", async () => {
-    renderDeviceDetailPage("Router-Core-01");
+    await renderDeviceDetailPage("Router-Core-01");
 
     expect(await screen.findByRole("heading", { name: "Router-Core-01" })).toBeInTheDocument();
     expect(screen.getByText("Core Router 01")).toBeInTheDocument();
@@ -70,7 +59,7 @@ describe("DeviceDetailPage and AuditHistoryTable Features (Section 7.7)", () => 
     );
 
     const user = userEvent.setup();
-    renderDeviceDetailPage("Router-Core-01");
+    await renderDeviceDetailPage("Router-Core-01");
 
     // Page 1: 1-20 of 25
     expect(await screen.findByText(/1–20/)).toBeInTheDocument();
@@ -111,7 +100,7 @@ describe("DeviceDetailPage and AuditHistoryTable Features (Section 7.7)", () => 
       })
     );
 
-    renderDeviceDetailPage("Router-Core-01");
+    await renderDeviceDetailPage("Router-Core-01");
 
     expect(
       await screen.findByText("Thiết bị này chưa từng được audit.")

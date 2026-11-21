@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LogOut, Shield, Activity } from "lucide-react";
-import { useApiKey } from "../../hooks/useApiKey";
+import { LogOut, Shield, Activity, Users, ShieldAlert } from "lucide-react";
+import { useAuth } from "../../auth/AuthProvider";
+import { useCan } from "../../auth/useCan";
 import { getHealth } from "../../services/devicesApi";
 import { HealthResponse } from "../../types/api";
 
@@ -10,7 +11,9 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps): React.JSX.Element {
-  const { clearApiKey } = useApiKey();
+  const { user, logout } = useAuth();
+  const canManageUsers = useCan("user:manage");
+  const canReadEvents = useCan("events:read");
   const navigate = useNavigate();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
@@ -35,9 +38,15 @@ export function AppShell({ children }: AppShellProps): React.JSX.Element {
     };
   }, []);
 
-  const handleLogout = (): void => {
-    clearApiKey();
-    navigate("/connect");
+  const handleLogout = async (): Promise<void> => {
+    await logout();
+    navigate("/login");
+  };
+
+  const roleBadgeColors: Record<string, string> = {
+    admin: "bg-purple-100 text-purple-700 border-purple-200",
+    operator: "bg-blue-100 text-blue-700 border-blue-200",
+    viewer: "bg-gray-100 text-gray-700 border-gray-200",
   };
 
   return (
@@ -45,19 +54,43 @@ export function AppShell({ children }: AppShellProps): React.JSX.Element {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-6">
             <Link to="/" className="flex items-center space-x-2 text-indigo-600 hover:text-indigo-700">
               <Shield className="w-7 h-7" />
               <span className="font-bold text-xl tracking-tight text-gray-900">NetSentry</span>
             </Link>
-            <span className="hidden sm:inline-block text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">
-              Dashboard
-            </span>
+
+            <nav className="hidden md:flex items-center space-x-1">
+              <Link
+                to="/"
+                className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 rounded-md transition-colors"
+              >
+                Thiết bị
+              </Link>
+              {canManageUsers && (
+                <Link
+                  to="/users"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 rounded-md transition-colors"
+                >
+                  <Users className="w-4 h-4 text-gray-500" />
+                  <span>Người dùng</span>
+                </Link>
+              )}
+              {canReadEvents && (
+                <Link
+                  to="/security-events"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 rounded-md transition-colors"
+                >
+                  <ShieldAlert className="w-4 h-4 text-gray-500" />
+                  <span>Nhật ký bảo mật</span>
+                </Link>
+              )}
+            </nav>
           </div>
 
           <div className="flex items-center space-x-4">
             {/* Server status pill */}
-            <div className="flex items-center space-x-1.5 text-xs bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full">
+            <div className="hidden sm:flex items-center space-x-1.5 text-xs bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full">
               <Activity className="w-3.5 h-3.5 text-gray-400" />
               {isOnline === true ? (
                 <>
@@ -75,6 +108,20 @@ export function AppShell({ children }: AppShellProps): React.JSX.Element {
                 <span className="text-gray-400">Đang kiểm tra...</span>
               )}
             </div>
+
+            {/* User Profile & Role */}
+            {user && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">{user.username}</span>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                    roleBadgeColors[user.role] || roleBadgeColors.viewer
+                  }`}
+                >
+                  {user.role}
+                </span>
+              </div>
+            )}
 
             {/* Logout button */}
             <button
