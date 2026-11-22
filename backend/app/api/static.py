@@ -36,8 +36,14 @@ def mount_static_spa(app: FastAPI, dist_dir: Path | None) -> None:
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
-        # Do not catch /api/ or /health routes (they are handled by their own routers or return 404 JSON)
-        if full_path.startswith("api/") or full_path == "api" or full_path == "health":
+        # Do not catch /api/, /health or disabled docs routes (they must return 404 JSON, not SPA index.html)
+        normalized_path = full_path.strip("/")
+        if (
+            full_path.startswith("api/")
+            or full_path == "api"
+            or full_path == "health"
+            or normalized_path in ("docs", "redoc", "openapi.json")
+        ):
             raise HTTPException(status_code=404, detail="Not Found")
 
         # Resolve path safely inside dist_dir to prevent path traversal

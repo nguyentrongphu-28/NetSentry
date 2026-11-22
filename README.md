@@ -85,10 +85,19 @@ Lệnh sẽ tạo 3 tài khoản mặc định: `demo_admin` (Admin), `demo_oper
 ```
 Truy cập giao diện: `http://localhost:8000` (đăng nhập bằng tài khoản `admin` / `DevAdminPassword123!`).
 
-### 4.3 Chạy API kết nối thiết bị thật phòng Lab
+### 4.3 Chạy API kết nối thiết bị thật phòng Lab (Nội bộ)
 ```bash
 uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --app-dir backend
 ```
+
+### 4.4 Triển khai Server Lab & Khởi động 1 lệnh kết hợp Cloudflare Tunnel
+Để khởi động hệ thống an toàn trên server phòng lab kết nối router Cisco và truy cập từ xa qua Cloudflare Quick Tunnel, sử dụng:
+```bash
+export NETSENTRY_ALLOWED_NETWORKS="192.168.1.1/32"   # IP Cisco router phòng lab
+./scripts/start_public.sh
+```
+> [!TIP]
+> Xem hướng dẫn chi tiết từng bước từ cấu hình Cisco Router, thiết lập biến môi trường, bảo mật chống SSRF đến vận hành giao diện tại: [docs/deploy_server.md](file:///home/trongphu/Learning/Q1_26-27/CSN301/Project/NetSentrySelf/docs/deploy_server.md).
 
 ---
 
