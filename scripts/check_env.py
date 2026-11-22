@@ -23,10 +23,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def check_python_version() -> bool:
     print(f"[*] Checking Python version: {sys.version.split()[0]}...")
-    if sys.version_info.major != 3 or sys.version_info.minor != 12:
-        print(f"[!] WARNING/FAIL: Python 3.12 is required, but detected {sys.version}")
+    if sys.version_info.major != 3 or sys.version_info.minor not in (11, 12):
+        print(f"[!] WARNING/FAIL: Python 3.11 or 3.12 is required, but detected {sys.version}")
         return False
-    print("    [OK] Python 3.12 detected.")
+    print(f"    [OK] Python 3.{sys.version_info.minor} detected.")
     return True
 
 
@@ -35,7 +35,7 @@ def check_critical_dependencies() -> bool:
     ok = True
     expected = {
         "netmiko": ("4.8.0", "3.4.0"),
-        "paramiko": ("5.1.0",),
+        "paramiko": ("5.1.0", "3.5.0", "3.4.0"),
     }
     for pkg, exp_vers in expected.items():
         try:
