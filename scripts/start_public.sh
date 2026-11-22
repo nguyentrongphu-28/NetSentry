@@ -112,8 +112,23 @@ export NETSENTRY_SNAPSHOT_CONTENT_API=0
 # Chế độ công khai cấm thực thi sửa đổi; muốn thử sửa cấu hình thật phải chạy KHÔNG công khai qua SSH tunnel.
 export NETSENTRY_REMEDIATION_EXECUTE_MODE="off"
 
-# Bắt buộc người dùng tự đặt ALLOWED_NETWORKS (chống SSRF), không có mặc định rộng
+# Bắt buộc khai báo ALLOWED_NETWORKS (chống SSRF), không có mặc định rộng
+if [ -z "${NETSENTRY_ALLOWED_NETWORKS:-}" ]; then
+    if [ -t 0 ]; then
+        echo -e "${YELLOW}[!] NETSENTRY_ALLOWED_NETWORKS chưa được đặt.${NC}"
+        read -rp "Nhập IP hoặc dải mạng router Cisco (ví dụ: 192.168.1.1/32): " USER_INPUT_NETWORKS
+        USER_INPUT_NETWORKS="$(echo "$USER_INPUT_NETWORKS" | tr -d '[:space:]')"
+        if [ -n "$USER_INPUT_NETWORKS" ]; then
+            # Tự động thêm /32 nếu người dùng chỉ nhập IP đơn lẻ (không có /)
+            if [[ "$USER_INPUT_NETWORKS" != *"/"* ]]; then
+                USER_INPUT_NETWORKS="${USER_INPUT_NETWORKS}/32"
+            fi
+            export NETSENTRY_ALLOWED_NETWORKS="$USER_INPUT_NETWORKS"
+        fi
+    fi
+fi
 : "${NETSENTRY_ALLOWED_NETWORKS:?Hãy đặt NETSENTRY_ALLOWED_NETWORKS = IP router, ví dụ 192.168.1.1/32}"
+
 
 # 7. Kiểm tra tài khoản quản trị (Admin)
 echo -e "${GREEN}[*] Kiểm tra tài khoản quản trị (Admin)...${NC}"
