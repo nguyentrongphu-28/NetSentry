@@ -35,7 +35,7 @@ def check_critical_dependencies() -> bool:
     ok = True
     expected = {
         "netmiko": ("4.8.0", "3.4.0"),
-        "paramiko": ("5.1.0", "3.5.0", "3.4.0"),
+        "paramiko": ("5.1.0", "3.5.1", "3.5.0", "3.4.0"),
     }
     for pkg, exp_vers in expected.items():
         try:

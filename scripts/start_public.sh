@@ -65,12 +65,12 @@ if [ -n "$MISSING_LIB" ]; then
     exit 1
 fi
 
-# Kiểm tra phiên bản netmiko (hỗ trợ 4.8.0 hoặc 3.4.0) và paramiko (hỗ trợ 5.1.0 hoặc 3.5.0 / 3.4.0 cho Cisco cũ)
+# Kiểm tra phiên bản netmiko (hỗ trợ 4.8.0 hoặc 3.4.0) và paramiko (hỗ trợ 5.1.0 hoặc 3.5.x / 3.4.0 cho Cisco cũ)
 VER_NETMIKO="$("$PYTHON_BIN" -c "import importlib.metadata; print(importlib.metadata.version('netmiko'))")"
 VER_PARAMIKO="$("$PYTHON_BIN" -c "import importlib.metadata; print(importlib.metadata.version('paramiko'))")"
-if [[ "$VER_NETMIKO" != "4.8.0" && "$VER_NETMIKO" != "3.4.0" ]] || [[ "$VER_PARAMIKO" != "5.1.0" && "$VER_PARAMIKO" != "3.5.0" && "$VER_PARAMIKO" != "3.4.0" ]]; then
+if [[ "$VER_NETMIKO" != "4.8.0" && "$VER_NETMIKO" != "3.4.0" ]] || [[ "$VER_PARAMIKO" != "5.1.0" && "$VER_PARAMIKO" != "3.5.1" && "$VER_PARAMIKO" != "3.5.0" && "$VER_PARAMIKO" != "3.4.0" ]]; then
     echo -e "${RED}[ERROR] Phiên bản thư viện mạng không đúng yêu cầu an toàn!${NC}"
-    echo "  Yêu cầu: netmiko in (4.8.0, 3.4.0), paramiko in (5.1.0, 3.5.0, 3.4.0)"
+    echo "  Yêu cầu: netmiko in (4.8.0, 3.4.0), paramiko in (5.1.0, 3.5.1, 3.5.0, 3.4.0)"
     echo "  Hiện tại: netmiko==$VER_NETMIKO, paramiko==$VER_PARAMIKO"
     exit 1
 fi
