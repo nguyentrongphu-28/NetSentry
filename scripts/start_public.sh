@@ -129,6 +129,25 @@ if [ -z "${NETSENTRY_ALLOWED_NETWORKS:-}" ]; then
 fi
 : "${NETSENTRY_ALLOWED_NETWORKS:?Hãy đặt NETSENTRY_ALLOWED_NETWORKS = IP router, ví dụ 192.168.1.1/32}"
 
+# Nhập tài khoản SSH kết nối router Cisco (chế độ công khai bảo vệ chống lộ pass qua web)
+if [ -z "${NETSENTRY_SSH_USERNAME:-}" ] && [ -t 0 ]; then
+    echo -e "${GREEN}[*] Cấu hình tài khoản SSH kết nối Cisco Router:${NC}"
+    read -rp "  Nhập SSH Username của router [mặc định: admin]: " USER_SSH_NAME
+    USER_SSH_NAME="${USER_SSH_NAME:-admin}"
+    export NETSENTRY_SSH_USERNAME="$USER_SSH_NAME"
+
+    read -rsp "  Nhập SSH Password của router: " USER_SSH_PASS
+    echo ""
+    export NETSENTRY_SSH_PASSWORD="$USER_SSH_PASS"
+
+    read -rsp "  Nhập Enable Secret của router (bỏ trống nếu không có): " USER_SSH_SECRET
+    echo ""
+    if [ -n "$USER_SSH_SECRET" ]; then
+        export NETSENTRY_ENABLE_SECRET="$USER_SSH_SECRET"
+    fi
+fi
+
+
 
 # 7. Kiểm tra tài khoản quản trị (Admin)
 echo -e "${GREEN}[*] Kiểm tra tài khoản quản trị (Admin)...${NC}"
