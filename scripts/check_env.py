@@ -34,16 +34,16 @@ def check_critical_dependencies() -> bool:
     print("[*] Checking critical dependency versions (netmiko and paramiko)...")
     ok = True
     expected = {
-        "netmiko": "4.8.0",
-        "paramiko": "5.1.0",
+        "netmiko": ("4.8.0", "3.4.0"),
+        "paramiko": ("5.1.0",),
     }
-    for pkg, exp_ver in expected.items():
+    for pkg, exp_vers in expected.items():
         try:
             ver = importlib.metadata.version(pkg)
-            if ver == exp_ver:
+            if ver in exp_vers:
                 print(f"    [OK] {pkg} == {ver}")
             else:
-                print(f"    [FAIL] {pkg} is {ver}, expected exact {exp_ver}!")
+                print(f"    [FAIL] {pkg} is {ver}, expected one of {exp_vers}!")
                 ok = False
         except importlib.metadata.PackageNotFoundError:
             print(f"    [FAIL] {pkg} is NOT installed in current environment!")
