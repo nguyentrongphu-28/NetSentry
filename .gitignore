@@ -10,13 +10,18 @@ htmlcov/
 # Environment and secrets
 .env
 .env.*
+*.env
 !.env.example
 *.pem
 *.key
 secrets/
 credentials/
 
-# Device data and logs
+# Device data, database and logs
+data/
+*.db
+*.sqlite
+reports/
 data/*
 !data/.gitkeep
 data/raw_configs/
@@ -25,6 +30,7 @@ data/*.db-wal
 data/*.db-shm
 *.log
 *.cfg
+!evaluation/corpus/**/*.cfg
 !backend/tests/fixtures/configs/*.cfg
 *.conf
 running-config*

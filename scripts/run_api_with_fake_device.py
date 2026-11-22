@@ -77,10 +77,12 @@ def main() -> None:
     # Generate or use provided API key (min 16 chars)
     api_key = args.api_key or secrets.token_urlsafe(24)
 
-    # Set mock fallback credentials in environment
+    # Set mock fallback credentials in environment (dynamically generated per dev run)
+    dev_ssh_pass = secrets.token_urlsafe(16)
+    dev_enable_sec = secrets.token_urlsafe(16)
     os.environ["NETSENTRY_SSH_USERNAME"] = "dev_admin"
-    os.environ["NETSENTRY_SSH_PASSWORD"] = "DevSecretPassword123!"
-    os.environ["NETSENTRY_ENABLE_SECRET"] = "DevEnableSecret456!"
+    os.environ["NETSENTRY_SSH_PASSWORD"] = dev_ssh_pass
+    os.environ["NETSENTRY_ENABLE_SECRET"] = dev_enable_sec
 
     # Locate fixture config
     fixture_filename = f"ios_{args.fixture}.cfg"
@@ -107,8 +109,8 @@ def main() -> None:
     # Configure settings
     default_creds = Credentials(
         username="dev_admin",
-        password="DevSecretPassword123!",
-        enable_secret="DevEnableSecret456!",
+        password=dev_ssh_pass,
+        enable_secret=dev_enable_sec,
     )
     settings = Settings(
         api_key=api_key,
@@ -140,7 +142,7 @@ def main() -> None:
     from app.domain.entities.user import Role
     user_repo = SQLiteUserRepository(db_path)
     hasher = Argon2PasswordHasher()
-    dev_password = "DevAdminPassword123!"
+    dev_password = secrets.token_urlsafe(16)
     user_repo.add("admin", hasher.hash(dev_password), Role.ADMIN, must_change_password=False)
 
     banner = "=" * 70
@@ -154,7 +156,7 @@ def main() -> None:
     print(f"  * Temp DB path     : {db_path}")
     print(f"  * Web Session Login: admin / {dev_password}")
     print(f"  * Fallback User    : dev_admin")
-    print(f"  * Fallback Pass    : DevSecretPassword123!")
+    print(f"  * Fallback Pass    : {dev_ssh_pass}")
     print(f"  * Generated API Key: {api_key}")
     if fail_on_cls:
         print(f"  * Fail-on Sim      : {args.fail_on} -> {fail_on_cls.__name__}")
