@@ -21,7 +21,7 @@ source .venv/bin/activate
 pytest -q backend/
 
 echo "=== 6. Documentation Consistency & Relative Links Check ==="
-python scripts/check_docs_links.py
+.venv/bin/python scripts/check_docs_links.py
 
 echo "=== 7. Frontend Lint ==="
 (cd frontend && npm run lint)
